@@ -6,8 +6,79 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SpeakDeck">
+<meta name="application-name" content="SpeakDeck">
 <meta name="theme-color" content="#0f0f0f">
+<meta name="description" content="Speaker notes app — organize your talks by folders and topics">
 <title>SpeakDeck</title>
+
+<!-- PWA Manifest (inline) -->
+<script>
+const manifestData = {
+  name: "SpeakDeck",
+  short_name: "SpeakDeck",
+  description: "Speaker notes app",
+  start_url: "./",
+  display: "fullscreen",
+  orientation: "portrait-primary",
+  background_color: "#0f0f0f",
+  theme_color: "#0f0f0f",
+  icons: [
+    { src: buildIcon(192), sizes: "192x192", type: "image/png", purpose: "any maskable" },
+    { src: buildIcon(512), sizes: "512x512", type: "image/png", purpose: "any maskable" }
+  ]
+};
+function buildIcon(size){
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512"><rect width="512" height="512" rx="100" fill="#0f0f0f"/><rect width="512" height="512" rx="100" fill="#1a1a1a"/><circle cx="256" cy="256" r="200" fill="#f5c842" opacity="0.08"/><text x="256" y="200" text-anchor="middle" font-family="Arial,sans-serif" font-weight="900" font-size="180" fill="#f5c842">S</text><text x="256" y="340" text-anchor="middle" font-family="Arial,sans-serif" font-weight="700" font-size="72" fill="#f5c842" letter-spacing="8">DECK</text></svg>`;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const img = new Image();
+  const blob = new Blob([svg], {type:'image/svg+xml'});
+  const url = URL.createObjectURL(blob);
+  return new Promise(res => {
+    img.onload = () => { ctx.drawImage(img,0,0,size,size); URL.revokeObjectURL(url); res(canvas.toDataURL('image/png')); };
+    img.src = url;
+  });
+}
+
+// Build manifest with real PNG icon data URIs
+(async()=>{
+  const [icon192, icon512] = await Promise.all([buildIcon(192), buildIcon(512)]);
+  manifestData.icons[0].src = icon192;
+  manifestData.icons[1].src = icon512;
+  const blob = new Blob([JSON.stringify(manifestData)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('link');
+  link.rel = 'manifest'; link.href = url;
+  document.head.appendChild(link);
+
+  // Apple touch icon
+  const appleLink = document.createElement('link');
+  appleLink.rel = 'apple-touch-icon';
+  appleLink.href = icon192;
+  document.head.appendChild(appleLink);
+
+  // Favicon
+  const favicon = document.createElement('link');
+  favicon.rel = 'icon'; favicon.type = 'image/png'; favicon.href = icon192;
+  document.head.appendChild(favicon);
+})();
+
+// Register service worker for offline use
+if('serviceWorker' in navigator){
+  const swCode = `
+    const CACHE='speakdeck-v1';
+    const ASSETS=['./'];
+    self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS))));
+    self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).catch(()=>caches.match('./')))));
+  `;
+  const swBlob = new Blob([swCode],{type:'application/javascript'});
+  const swUrl = URL.createObjectURL(swBlob);
+  navigator.serviceWorker.register(swUrl).catch(()=>{});
+}
+</script>
+
 <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
