@@ -242,7 +242,13 @@ tr.dragging{opacity:.35}
 .slide-pg-num{display:inline-block;font-size:13px;font-weight:700;color:var(--gold);background:#f5c84218;border:1px solid #f5c84244;border-radius:6px;padding:3px 10px;margin-bottom:10px;letter-spacing:.3px}
 .sbullet-num{width:24px;height:24px;min-width:24px;background:var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#000;margin-top:2px;flex-shrink:0}
 
-/* ── BIG NAV BUTTONS ── */
+/* ── SLIDE HEADER ROW ── */
+.slide-header{display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.slide-ctr{font-size:13px;color:var(--t3);font-weight:500}
+.slide-add-btn{width:34px;height:34px;border-radius:50%;background:var(--gold);border:none;color:#000;font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:background .15s,transform .1s;-webkit-tap-highlight-color:transparent}
+.slide-add-btn:active{background:var(--gold2);transform:scale(.92)}
+
+
 .big-nav{display:flex;gap:12px;flex-shrink:0;padding:4px 0 2px}
 .big-nav-btn{flex:1;height:64px;border-radius:14px;background:var(--gold);border:none;color:#000;font-size:28px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:'Open Sans',sans-serif;transition:background .15s,transform .1s;-webkit-tap-highlight-color:transparent}
 .big-nav-btn:active{background:var(--gold2);transform:scale(.97)}
@@ -250,8 +256,15 @@ tr.dragging{opacity:.35}
 
 /* ── BULLET/NUMBER TOGGLE ── */
 .list-type-toggle{display:flex;gap:6px;margin-bottom:12px}
-.ltt-btn{flex:1;padding:8px;border-radius:7px;border:1px solid var(--b);background:transparent;color:var(--t3);font-size:12px;font-family:'Open Sans',sans-serif;cursor:pointer;transition:all .15s}
+.ltt-btn{flex:1;padding:8px;border-radius:7px;border:1px solid var(--b);background:transparent;color:var(--t3);font-size:11px;font-family:'Open Sans',sans-serif;cursor:pointer;transition:all .15s}
 .ltt-btn.active{background:var(--gold);color:#000;border-color:var(--gold);font-weight:700}
+
+/* ── QUOTE STYLE ── */
+.slide-quote-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:8px 0}
+.slide-quote{position:relative;padding:24px 28px;border-left:4px solid var(--gold);background:#f5c84210;border-radius:0 12px 12px 0}
+.slide-quote-mark{font-size:72px;line-height:1;color:var(--gold);font-family:Georgia,serif;position:absolute;top:-10px;left:12px;opacity:.5}
+.slide-quote-text{font-size:24px;font-weight:600;font-style:italic;line-height:1.55;color:var(--t);padding-left:32px}
+.slide-quote-author{margin-top:16px;font-size:16px;font-weight:600;color:var(--gold);padding-left:32px;letter-spacing:.3px}
 
 /* ── AUTOSAVE TOAST ── */
 .autosave-toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--toast-bg);border:1px solid var(--toast-border);border-radius:20px;padding:6px 16px;font-size:11px;color:var(--t3);z-index:999;pointer-events:none;opacity:0;transition:opacity .3s}
@@ -376,7 +389,7 @@ function showToast(msg){
 let S=loadData();
 // ensure modal/fullscreen state is clean on load
 S.modal=null;S.fullscreen=false;S.editPageIdx=null;S.confirm=null;
-S.editFolderTarget=null;S.editTopicTarget=null;S.newIconIdx=0;S.sidebarOpen=false;
+S.editFolderTarget=null;S.editTopicTarget=null;S.newIconIdx=0;S.sidebarOpen=false;S.insertAfter=null;
 
 function allTopics(){return S.folders.flatMap(f=>f.topics)}
 function getTopic(){return allTopics().find(t=>t.id===S.selectedTopicId)}
@@ -576,9 +589,24 @@ function render(){
 
 function buildSlideCard(topic,idx){
   const page=topic.pages[idx];
-  const isNum=(page.listType||'bullet')==='number';
+  const listType=(page.listType||'bullet');
   const card=el('div','slide-card center');
-  card.innerHTML=`<div><div class="slide-pg-num">Page ${idx+1} of ${topic.pages.length}</div><div class="slide-stitle">${esc(page.title)}</div></div><div class="slide-bullets">${page.bullets.map((b,i)=>`<div class="sbullet">${isNum?`<div class="sbullet-num">${i+1}</div>`:'<div class="sbullet-dot"></div>'}<div>${esc(b)}</div></div>`).join('')}</div>`;
+
+  let bodyHTML='';
+  if(listType==='quote'){
+    bodyHTML=`<div class="slide-quote-wrap">
+      <div class="slide-quote">
+        <div class="slide-quote-mark">"</div>
+        <div class="slide-quote-text">${esc(page.quoteText||'')}</div>
+        ${page.quoteAuthor?`<div class="slide-quote-author">— ${esc(page.quoteAuthor)}</div>`:''}
+      </div>
+    </div>`;
+  } else {
+    const isNum=listType==='number';
+    bodyHTML=`<div class="slide-bullets">${(page.bullets||[]).map((b,i)=>`<div class="sbullet">${isNum?`<div class="sbullet-num">${i+1}</div>`:'<div class="sbullet-dot"></div>'}<div>${esc(b)}</div></div>`).join('')}</div>`;
+  }
+
+  card.innerHTML=`<div><div class="slide-pg-num">Page ${idx+1} of ${topic.pages.length}</div><div class="slide-stitle">${esc(page.title)}</div></div>${bodyHTML}`;
   return card;
 }
 
@@ -587,6 +615,10 @@ function renderSlideView(content,topic){
   const pct=Math.round(((idx+1)/pages.length)*100);
   const d=el('div','slide-view');
   d.innerHTML=`
+    <div class="slide-header">
+      <span class="slide-ctr" id="slide-ctr">Page ${idx+1} of ${pages.length}</span>
+      <button class="slide-add-btn" id="slide-add-btn" title="Add new page">+</button>
+    </div>
     <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:${pct}%"></div></div>
     <div class="slide-stage" id="slide-stage"></div>
     <div class="slide-dots" id="slide-dots">${pages.map((_,i)=>`<div class="sdot ${i===idx?'active':''}" data-di="${i}"></div>`).join('')}</div>
@@ -598,11 +630,20 @@ function renderSlideView(content,topic){
   const stage=d.querySelector('#slide-stage');
   stage.appendChild(buildSlideCard(topic,idx));
 
+  // "+" opens Add Page modal with insert-after current page flag
+  d.querySelector('#slide-add-btn').addEventListener('click',()=>{
+    S.modal='page';
+    S.editPageIdx=null;
+    S.insertAfter=S.page; // insert after current page
+    render();
+  });
+
   function goTo(newIdx,dir){
     if(newIdx<0||newIdx>=pages.length)return;
     S.page=newIdx;saveData();
     const old=stage.querySelector('.slide-card');
     animateSlide(stage,old,dir,()=>buildSlideCard(topic,newIdx));
+    d.querySelector('#slide-ctr').textContent=`Page ${newIdx+1} of ${pages.length}`;
     d.querySelector('#prog-fill').style.width=Math.round(((newIdx+1)/pages.length)*100)+'%';
     d.querySelectorAll('.sdot').forEach((dot,i)=>dot.classList.toggle('active',i===newIdx));
     d.querySelector('#sprev').disabled=newIdx===0;
@@ -634,36 +675,65 @@ function renderTOC(content,topic){
 
 function renderModal(app){
   const ov=el('div','moverlay');
-  ov.addEventListener('click',e=>{if(e.target===ov){S.modal=null;render();}});
+  ov.addEventListener('click',e=>{if(e.target===ov){S.modal=null;S.insertAfter=null;render();}});
 
   if(S.modal==='page'){
     const topic=getTopic(),editing=S.editPageIdx!==null,ex=editing?topic.pages[S.editPageIdx]:null;
-    let bullets=ex?[...ex.bullets]:['',''];
+    let bullets=ex?[...( ex.bullets||[] )]:['',''];
     let listType=(ex&&ex.listType)||'bullet';
     const m=el('div','modal');
     m.innerHTML=`<div class="modal-handle"></div><h3>${editing?'Edit Page':'Add New Page'}</h3>
       <div class="fg"><label>Page Title</label><input id="ptitle" value="${ex?esc(ex.title):''}" placeholder="e.g. The Key Insight" autocomplete="off"></div>
       <div class="fg">
-        <label>List Style</label>
+        <label>Page Style</label>
         <div class="list-type-toggle">
           <button class="ltt-btn ${listType==='bullet'?'active':''}" data-lt="bullet">● Bullets</button>
           <button class="ltt-btn ${listType==='number'?'active':''}" data-lt="number">1. Numbers</button>
+          <button class="ltt-btn ${listType==='quote'?'active':''}" data-lt="quote">" Quote</button>
         </div>
       </div>
-      <div class="fg"><label>Points (max 7)</label><div class="blist" id="blist"></div><button class="badd" id="badd">+ Add Point</button></div>
+      <div id="bullets-section" style="display:${listType==='quote'?'none':'block'}">
+        <div class="fg"><label>Points (max 7)</label><div class="blist" id="blist"></div><button class="badd" id="badd">+ Add Point</button></div>
+      </div>
+      <div id="quote-section" style="display:${listType==='quote'?'block':'none'}">
+        <div class="fg"><label>Quote Text</label><input id="quote-text" value="${ex&&ex.quoteText?esc(ex.quoteText):''}" placeholder="Enter the quote here..." autocomplete="off"></div>
+        <div class="fg"><label>Author (optional)</label><input id="quote-author" value="${ex&&ex.quoteAuthor?esc(ex.quoteAuthor):''}" placeholder="— Author name" autocomplete="off"></div>
+      </div>
       <div class="macts">${editing?`<button class="btn btn-red" id="del-pg-btn">Delete</button>`:''}<button class="btn btn-ghost" id="mcancel">Cancel</button><button class="btn btn-gold" id="msave">${editing?'Save':'Add Page'}</button></div>`;
 
     const upd=()=>{const bl=m.querySelector('#blist');bl.innerHTML=bullets.map((_,i)=>`<div class="brow"><input class="bi" data-i="${i}" value="${esc(bullets[i]||'')}" placeholder="Point ${i+1}..."><button class="bdel" data-d="${i}">×</button></div>`).join('');bl.querySelectorAll('.bi').forEach(inp=>inp.addEventListener('input',e=>{bullets[+inp.dataset.i]=e.target.value;}));bl.querySelectorAll('.bdel').forEach(btn=>btn.addEventListener('click',()=>{bullets.splice(+btn.dataset.d,1);upd();}));};upd();
-    m.querySelectorAll('.ltt-btn').forEach(btn=>{btn.addEventListener('click',()=>{listType=btn.dataset.lt;m.querySelectorAll('.ltt-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');});});
+    m.querySelectorAll('.ltt-btn').forEach(btn=>{btn.addEventListener('click',()=>{
+      listType=btn.dataset.lt;
+      m.querySelectorAll('.ltt-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      m.querySelector('#bullets-section').style.display=listType==='quote'?'none':'block';
+      m.querySelector('#quote-section').style.display=listType==='quote'?'block':'none';
+    });});
     m.querySelector('#badd').addEventListener('click',()=>{if(bullets.length<7){bullets.push('');upd();}});
-    m.querySelector('#mcancel').addEventListener('click',()=>{S.modal=null;render();});
+    m.querySelector('#mcancel').addEventListener('click',()=>{S.modal=null;S.insertAfter=null;render();});
     if(editing)m.querySelector('#del-pg-btn').addEventListener('click',()=>{S.modal='confirm';S.confirm={type:'del-page',idx:S.editPageIdx,label:`Delete "${ex.title}"?`,desc:'This page will be permanently removed.'};render();});
     m.querySelector('#msave').addEventListener('click',()=>{
       const title=m.querySelector('#ptitle').value.trim();if(!title){m.querySelector('#ptitle').focus();return;}
-      const filled=bullets.filter(b=>b.trim());
-      const pageData={title,listType,bullets:filled.length?filled:['Add content here']};
-      if(editing){topic.pages[S.editPageIdx]=pageData;}else{topic.pages.push(pageData);}
-      S.modal=null;S.editPageIdx=null;if(!editing)S.view='toc';
+      let pageData;
+      if(listType==='quote'){
+        const quoteText=m.querySelector('#quote-text').value.trim();
+        if(!quoteText){m.querySelector('#quote-text').focus();return;}
+        pageData={title,listType,quoteText,quoteAuthor:m.querySelector('#quote-author').value.trim(),bullets:[]};
+      } else {
+        const filled=bullets.filter(b=>b.trim());
+        pageData={title,listType,bullets:filled.length?filled:['Add content here']};
+      }
+      if(editing){topic.pages[S.editPageIdx]=pageData;}else{
+        // insert after current page if triggered from slide view, otherwise append
+        if(S.insertAfter!=null){
+          topic.pages.splice(S.insertAfter+1,0,pageData);
+          S.page=S.insertAfter+1; // jump to new page
+        } else {
+          topic.pages.push(pageData);
+        }
+      }
+      S.modal=null;S.editPageIdx=null;S.insertAfter=null;
+      if(!editing)S.view='slide';
       saveData();render();
     });
     ov.appendChild(m);
