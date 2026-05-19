@@ -312,28 +312,56 @@ tr.dragging{opacity:.35}
 </style>
 
 
-</style>
 </head>
 <body>
 <div class="app" id="app"></div>
 <div class="sb-overlay" id="sb-overlay"></div>
 
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getFirestore, doc, setDoc, onSnapshot }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAnDJ8sBzs8kY9xwN9yj545H7FJtbVHjCA",
+  authDomain: "speakdeck-bb76b.firebaseapp.com",
+  projectId: "speakdeck-bb76b",
+  storageBucket: "speakdeck-bb76b.firebasestorage.app",
+  messagingSenderId: "55277159527",
+  appId: "1:55277159527:web:90abfdf1c812a7707680c2"
+};
+const fbApp  = initializeApp(firebaseConfig);
+const auth   = getAuth(fbApp);
+const db     = getFirestore(fbApp);
+const prov   = new GoogleAuthProvider();
+
+window._fb = {
+  signIn:  ()=>signInWithPopup(auth, prov),
+  signOut: ()=>signOut(auth),
+  save: async(uid, data)=>{
+    await setDoc(doc(db,'users',uid), data);
+  },
+  subscribe: (uid, cb)=>onSnapshot(doc(db,'users',uid), snap=>{ if(snap.exists()) cb(snap.data()); })
+};
+
+onAuthStateChanged(auth, user=>{
+  window._fbUser = user||null;
+  if(typeof window._onAuthReady==='function') window._onAuthReady(user);
+});
+</script>
+
 <script>
 const ICONS=['📢','🎤','💡','🚀','🌍','🏆','📊','🎯','🔥','💼','🎓','⚡','🧠','📌','🎨'];
-const SAVE_KEY='speakdeck_data';
-const THEME_KEY='speakdeck_theme';
+const SAVE_KEY  = 'speakdeck_data';
+const THEME_KEY = 'speakdeck_theme';
+window._fbUser  = null;
 
-// Apply saved theme immediately to avoid flash
 if(localStorage.getItem(THEME_KEY)==='light') document.body.classList.add('light');
+function toggleTheme(){ const l=document.body.classList.toggle('light'); localStorage.setItem(THEME_KEY,l?'light':'dark'); render(); }
 
-function toggleTheme(){
-  const isLight=document.body.classList.toggle('light');
-  localStorage.setItem(THEME_KEY, isLight?'light':'dark');
-  // re-render to update icon
-  render();
-}
-
-// ── DEFAULT DATA ──
 const DEFAULT = {
   folders:[
     {id:1,name:'Conference Talks',icon:'🎤',open:true,topics:[
@@ -354,42 +382,59 @@ const DEFAULT = {
       ]},
     ]},
   ],
-  selectedTopicId:11,
-  view:'toc',
-  page:0,
+  selectedTopicId:11, view:'toc', page:0,
 };
 
-// ── LOAD / SAVE ──
-function loadData(){
-  try{
-    const raw=localStorage.getItem(SAVE_KEY);
-    if(raw){
-      const saved=JSON.parse(raw);
-      // merge — keep ui state from default, data from saved
-      return {...DEFAULT,...saved};
-    }
-  }catch(e){}
-  return {...DEFAULT};
+// ── LOCAL ──
+function loadLocal(){ try{ const r=localStorage.getItem(SAVE_KEY); if(r) return {...DEFAULT,...JSON.parse(r)}; }catch(e){} return {...DEFAULT}; }
+function saveLocal(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify({folders:S.folders,selectedTopicId:S.selectedTopicId,view:S.view,page:S.page})); }catch(e){} }
+
+// ── FIREBASE ──
+let _unsub=null, _saveTimer=null;
+function saveToFirebase(){
+  clearTimeout(_saveTimer);
+  _saveTimer=setTimeout(async()=>{
+    if(!window._fbUser||!window._fb) return;
+    try{
+      await window._fb.save(window._fbUser.uid,{folders:S.folders,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()});
+      showToast('Synced ✓');
+    }catch(e){ showToast('Saved locally'); }
+  },800);
 }
-function saveData(){
-  try{
-    const toSave={folders:S.folders,selectedTopicId:S.selectedTopicId,view:S.view,page:S.page};
-    localStorage.setItem(SAVE_KEY,JSON.stringify(toSave));
-    showToast('Saved ✓');
-  }catch(e){showToast('Save failed');}
+function subscribeFirebase(){
+  if(_unsub){ _unsub(); _unsub=null; }
+  if(!window._fbUser||!window._fb) return;
+  _unsub=window._fb.subscribe(window._fbUser.uid, data=>{
+    if(data.folders){ S.folders=data.folders; }
+    if(data.selectedTopicId){ S.selectedTopicId=data.selectedTopicId; }
+    saveLocal();
+    render();
+  });
 }
+
+function saveData(){ saveLocal(); saveToFirebase(); }
+
+// ── TOAST ──
 let toastTimer=null;
 function showToast(msg){
   let t=document.getElementById('autosave-toast');
   if(!t){t=document.createElement('div');t.id='autosave-toast';t.className='autosave-toast';document.body.appendChild(t);}
-  t.textContent=msg;t.classList.add('show');
-  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),1800);
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2000);
 }
 
-let S=loadData();
-// ensure modal/fullscreen state is clean on load
-S.modal=null;S.fullscreen=false;S.editPageIdx=null;S.confirm=null;
-S.editFolderTarget=null;S.editTopicTarget=null;S.newIconIdx=0;S.sidebarOpen=false;S.insertAfter=null;
+// ── STATE ──
+let S=loadLocal();
+S.modal=null;S.editPageIdx=null;S.confirm=null;S.editFolderTarget=null;
+S.editTopicTarget=null;S.newIconIdx=0;S.sidebarOpen=false;S.insertAfter=null;S.user=null;
+
+window._onAuthReady=function(user){
+  S.user=user;
+  if(user){ subscribeFirebase(); }
+  else{ if(_unsub){_unsub();_unsub=null;} }
+  render();
+};
+
 
 function allTopics(){return S.folders.flatMap(f=>f.topics)}
 function getTopic(){return allTopics().find(t=>t.id===S.selectedTopicId)}
@@ -453,10 +498,23 @@ function render(){
 
   // ── SIDEBAR ──
   const sb=el('div','sidebar'+(S.sidebarOpen?' open':''));
+  const userHtml = S.user
+    ? `<div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+        <img src="${S.user.photoURL||''}" style="width:22px;height:22px;border-radius:50%;flex-shrink:0" onerror="this.style.display='none'">
+        <span style="font-size:10px;color:var(--t3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${S.user.displayName||S.user.email||''}</span>
+        <button id="signout-btn" style="font-size:9px;padding:2px 7px;border-radius:4px;background:transparent;border:1px solid var(--faction-border);color:var(--t3);cursor:pointer;font-family:inherit">Sign out</button>
+      </div>`
+    : `<button id="signin-btn" style="margin-top:8px;width:100%;padding:7px;background:var(--gold);color:#000;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px">
+        <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#000" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#000" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#000" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#000" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Sign in with Google
+      </button>`;
   sb.innerHTML=`
-    <div class="logo" style="display:flex;align-items:center;justify-content:space-between">
-      <div><h1>SpeakDeck</h1><p>Speaker Notes</p></div>
-      <button class="theme-btn" id="theme-btn" title="Toggle theme">${document.body.classList.contains('light')?'🌙':'☀️'}</button>
+    <div class="logo" style="display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div><h1>SpeakDeck</h1><p>Speaker Notes</p></div>
+        <button class="theme-btn" id="theme-btn" title="Toggle theme">${document.body.classList.contains('light')?'🌙':'☀️'}</button>
+      </div>
+      ${userHtml}
     </div>
     <div class="sb-scroll">
       <div class="sb-section">Folders</div>
@@ -557,6 +615,8 @@ function render(){
     btn.addEventListener('click',()=>{S.modal='new-topic';S.editFolderTarget=+btn.dataset.addt;render();});
   });
   sb.querySelector('#theme-btn').addEventListener('click',e=>{e.stopPropagation();toggleTheme();});
+  if(sb.querySelector('#signin-btn')) sb.querySelector('#signin-btn').addEventListener('click',e=>{e.stopPropagation();window._fb&&window._fb.signIn().catch(err=>showToast('Sign-in failed'));});
+  if(sb.querySelector('#signout-btn')) sb.querySelector('#signout-btn').addEventListener('click',e=>{e.stopPropagation();window._fb&&window._fb.signOut();});
   sb.querySelector('#add-folder-btn').addEventListener('click',()=>{S.modal='new-folder';S.newIconIdx=0;render();});
   app.appendChild(sb);
 
