@@ -81,10 +81,12 @@ if('serviceWorker' in navigator){
 }catch(e){console.warn("PWA manifest error:",e.message);}
 </script>
 
-<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;overflow:hidden;font-family:'Open Sans',sans-serif;}
+html,body{height:100%;overflow:hidden;font-family:'Open Sans',Arial,Helvetica,sans-serif;}
 
 /* ── DARK THEME (default) ── */
 :root{
@@ -347,8 +349,9 @@ const SAVE_KEY  = 'speakdeck_data';
 const THEME_KEY = 'speakdeck_theme';
 window._fbUser  = null;
 
-if(localStorage.getItem(THEME_KEY)==='light') document.body.classList.add('light');
-function toggleTheme(){ const l=document.body.classList.toggle('light'); localStorage.setItem(THEME_KEY,l?'light':'dark'); render(); }
+// Apply saved theme as early as possible
+(function(){ try{ if(localStorage.getItem('speakdeck_theme')==='light') document.documentElement.classList.add('light'); }catch(e){} })();
+function toggleTheme(){ const l=document.documentElement.classList.toggle('light'); document.body.classList.toggle('light',l); try{localStorage.setItem(THEME_KEY,l?'light':'dark');}catch(e){} render(); }
 
 const DEFAULT = {
   folders:[
@@ -424,15 +427,6 @@ window._onAuthReady=function(user){
   render();
 };
 
-// ── SAFETY FALLBACK ──
-// Render immediately from local data so page never stays blank.
-// If Firebase loads later, _onAuthReady will re-render with cloud data.
-render();
-
-// If Firebase hasn't responded in 3 seconds, it's offline — stay with local data.
-setTimeout(()=>{ if(!S.user) render(); }, 3000);
-
-
 function allTopics(){return S.folders.flatMap(f=>f.topics)}
 function getTopic(){return allTopics().find(t=>t.id===S.selectedTopicId)}
 function getFolderOf(tid){return S.folders.find(f=>f.topics.some(t=>t.id===tid))}
@@ -468,7 +462,12 @@ function toggleSidebar(open){
   if(sb)sb.classList.toggle('open',S.sidebarOpen);
   if(ov)ov.classList.toggle('show',S.sidebarOpen);
 }
-document.getElementById('sb-overlay').addEventListener('click',()=>toggleSidebar(false));
+document.addEventListener('DOMContentLoaded', function(){
+  // Sync theme from documentElement to body
+  if(document.documentElement.classList.contains('light')) document.body.classList.add('light');
+  document.getElementById('sb-overlay').addEventListener('click',()=>toggleSidebar(false));
+  render();
+});
 
 function addSwipe(stage,getCard,onNext,onPrev){
   let startX=0,startY=0,dx=0,dragging=false,lockAxis=null;
@@ -531,7 +530,7 @@ function render(){
     <div class="logo" style="display:flex;flex-direction:column">
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div><h1>SpeakDeck</h1><p>v3.0 · Speaker Notes</p></div>
-        <button class="theme-btn" id="theme-btn" title="Toggle theme">${document.body.classList.contains('light')?'🌙':'☀️'}</button>
+        <button class="theme-btn" id="theme-btn" title="Toggle theme">${document.documentElement.classList.contains('light')?'🌙':'☀️'}</button>
       </div>
       ${userHtml}
     </div>
@@ -1041,8 +1040,8 @@ document.addEventListener('keydown',e=>{
   }
 });
 
-render();
-
-// Absolute safety net — if anything above threw, this still renders
-document.addEventListener('DOMContentLoaded', ()=>{ try{ if(!document.getElementById('app').children.length) render(); }catch(e){} });
+// Absolute safety net
+document.addEventListener('DOMContentLoaded', ()=>{ try{ if(!document.getElementById('app').children.length) render(); }catch(e){console.error('Render error:',e);} });
+</script>
+</body>
 </html>
