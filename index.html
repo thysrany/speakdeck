@@ -206,7 +206,7 @@ tr.dragging{opacity:.35}
 
 <script>
 // ── STORAGE ──
-var SAVE_KEY='speakdeck_v3';
+var SAVE_KEY='speakdeck_v4';
 var THEME_KEY='speakdeck_theme';
 
 // Apply theme immediately
@@ -239,7 +239,29 @@ var DEFAULT={
 function loadData(){
   try{
     var r=localStorage.getItem(SAVE_KEY);
-    if(r){var d=JSON.parse(r);return Object.assign({},DEFAULT,d);}
+    if(r){
+      var d=JSON.parse(r);
+      var merged=Object.assign({},DEFAULT,d);
+      // Sanitize all pages — ensure every page has required fields
+      if(merged.folders){
+        merged.folders.forEach(function(f){
+          if(!f.topics) f.topics=[];
+          f.topics.forEach(function(t){
+            if(!t.pages) t.pages=[];
+            t.pages=t.pages.filter(function(p){return p&&p.title;}).map(function(p){
+              return {
+                title:p.title||'Untitled',
+                listType:p.listType||'bullet',
+                bullets:Array.isArray(p.bullets)?p.bullets:[],
+                quoteText:p.quoteText||'',
+                quoteAuthor:p.quoteAuthor||''
+              };
+            });
+          });
+        });
+      }
+      return merged;
+    }
   }catch(e){}
   return Object.assign({},DEFAULT);
 }
@@ -473,6 +495,7 @@ function render(){
 
 function buildSlideCard(topic,idx){
   var page=topic.pages[idx];
+  if(!page) page={title:'',listType:'bullet',bullets:[]};
   var listType=page.listType||'bullet';
   var card=el('div','slide-card center');
   var body='';
