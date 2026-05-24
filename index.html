@@ -200,6 +200,7 @@ tr.dragging{opacity:.35}
 </head>
 <body>
 <div class="app" id="app"></div>
+<div id="fallback" style="position:fixed;top:0;left:0;width:100%;background:red;color:white;font-size:30px;font-weight:bold;padding:20px;z-index:99999;text-align:center">HTML LOADED</div>
 <div class="sb-overlay" id="sb-overlay"></div>
 <div id="autosave-toast" class="autosave-toast"></div>
 
@@ -725,9 +726,15 @@ document.addEventListener('keydown',function(e){
 document.getElementById('sb-overlay').addEventListener('click',function(){toggleSidebar(false);});
 
 // Initial render
-render();
-// Debug: confirm file loaded (remove after testing)
-setTimeout(function(){showToast('SpeakDeck v3 loaded ✓');},500);
+try{
+  render();
+  var fb=document.getElementById("fallback");
+  if(fb)fb.remove();
+  showToast("App loaded!");
+}catch(e){
+  var fb=document.getElementById("fallback");
+  if(fb)fb.textContent="JS ERROR: "+e.message;
+}
 
 </script>
 </body>
