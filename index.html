@@ -844,14 +844,26 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
             S.user = user;
             saveUser(user);
             showToast('Signed in!');
-            // Load cloud data then sync
+            // Load cloud data — if empty, upload local data (first sign-in)
             fsGet(user.uid, token).then(function(doc){
               if(doc&&doc.fields){
+                // Cloud has data — load it
                 var data=fromFields(doc.fields);
-                if(data.folders){ S.folders=data.folders; }
+                if(data.folders&&data.folders.length){ S.folders=data.folders; }
                 if(data.selectedTopicId){ S.selectedTopicId=data.selectedTopicId; }
                 saveNav();
+                showToast('Notes loaded from cloud ✓');
+              } else {
+                // Cloud is empty — upload local data
+                fsSave(user.uid, token, {
+                  folders: S.folders,
+                  selectedTopicId: S.selectedTopicId,
+                  updatedAt: Date.now()
+                }).then(function(){ showToast('Notes uploaded to cloud ✓'); });
               }
+              render();
+            }).catch(function(){
+              // Network error — keep local data
               render();
             });
           }).catch(function(){ showToast('Could not get user info'); });
@@ -906,13 +918,21 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
       fsGet(saved.uid, token).then(function(doc){
         if(doc&&doc.fields){
           var data=fromFields(doc.fields);
-          if(data.folders){ S.folders=data.folders; }
+          if(data.folders&&data.folders.length){
+            S.folders=data.folders;
+          } else {
+            // Cloud empty — upload local data
+            fsSave(saved.uid, token, {folders:S.folders,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()});
+          }
           if(data.selectedTopicId){ S.selectedTopicId=data.selectedTopicId; }
           saveNav();
+        } else {
+          // No doc yet — upload local data
+          fsSave(saved.uid, token, {folders:S.folders,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()});
         }
-        render(); // update sidebar with user info
+        render();
       }).catch(function(){
-        render(); // show user info even if cloud fetch fails
+        render();
       });
     } else {
       // Token expired — clear and show sign-in
