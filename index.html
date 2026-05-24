@@ -237,7 +237,11 @@ tr.dragging{opacity:.35}
 .slide-card.dragging-card{transition:none}
 .slide-stitle{font-family:'Open Sans',sans-serif;font-size:32px;font-weight:800;line-height:1.15;border-bottom:1px solid var(--b);padding-bottom:20px;flex-shrink:0;color:var(--t)}
 .slide-bullets{display:flex;flex-direction:column;gap:16px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.sbullet{display:flex;align-items:flex-start;gap:14px;font-size:22px;font-weight:500;line-height:1.4;color:var(--t)}
+.sbullet{display:flex;align-items:flex-start;gap:14px;font-size:22px;font-weight:500;line-height:1.4;color:var(--t);cursor:pointer;border-radius:8px;padding:4px 6px;margin:-4px -6px;transition:background .15s}
+.sbullet:hover{background:#f5c84214}
+.sbullet.copied{background:#f5c84233}
+.sbullet-text{user-select:text;-webkit-user-select:text}
+@media(max-width:640px){.sbullet-text{user-select:none;-webkit-user-select:none}}
 .sbullet-dot{width:8px;height:8px;min-width:8px;background:var(--gold);border-radius:50%;margin-top:10px;flex-shrink:0}
 .slide-dots{display:flex;align-items:center;justify-content:center;gap:7px;flex-shrink:0;padding:4px 0}
 .sdot{width:7px;height:7px;border-radius:50%;background:var(--b);transition:all .2s;cursor:pointer;min-width:7px}
@@ -680,16 +684,40 @@ function buildSlideCard(topic,idx){
     bodyHTML=`<div class="slide-quote-wrap">
       <div class="slide-quote">
         <div class="slide-quote-mark">"</div>
-        <div class="slide-quote-text">${esc(page.quoteText||'')}</div>
+        <div class="slide-quote-text sbullet-text">${esc(page.quoteText||'')}</div>
         ${page.quoteAuthor?`<div class="slide-quote-author">— ${esc(page.quoteAuthor)}</div>`:''}
       </div>
     </div>`;
   } else {
     const isNum=listType==='number';
-    bodyHTML=`<div class="slide-bullets">${(page.bullets||[]).map((b,i)=>`<div class="sbullet">${isNum?`<div class="sbullet-num">${i+1}</div>`:'<div class="sbullet-dot"></div>'}<div>${esc(b).replace(/\n/g,'<br>')}</div></div>`).join('')}</div>`;
+    bodyHTML=`<div class="slide-bullets">${(page.bullets||[]).map((b,i)=>`
+      <div class="sbullet" data-btext="${esc(b)}">
+        ${isNum?`<div class="sbullet-num">${i+1}</div>`:'<div class="sbullet-dot"></div>'}
+        <div class="sbullet-text">${esc(b).replace(/\n/g,'<br>')}</div>
+      </div>`).join('')}</div>`;
   }
 
   card.innerHTML=`<div><div class="slide-pg-num">Page ${idx+1} of ${topic.pages.length}</div><div class="slide-stitle">${esc(page.title)}</div></div>${bodyHTML}`;
+
+  // Long-press to copy on mobile
+  card.querySelectorAll('.sbullet[data-btext]').forEach(row=>{
+    let pressTimer=null;
+    function startPress(){
+      pressTimer=setTimeout(()=>{
+        const text=row.dataset.btext;
+        navigator.clipboard.writeText(text).then(()=>{
+          row.classList.add('copied');
+          showToast('Copied!');
+          setTimeout(()=>row.classList.remove('copied'),600);
+        }).catch(()=>showToast('Copy failed'));
+      },500);
+    }
+    function cancelPress(){ clearTimeout(pressTimer); }
+    row.addEventListener('touchstart', startPress, {passive:true});
+    row.addEventListener('touchend',   cancelPress, {passive:true});
+    row.addEventListener('touchmove',  cancelPress, {passive:true});
+  });
+
   return card;
 }
 
