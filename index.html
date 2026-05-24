@@ -10,7 +10,7 @@
 <meta name="application-name" content="SpeakDeck">
 <meta name="theme-color" content="#0f0f0f">
 <meta name="description" content="Speaker notes app — organize your talks by folders and topics">
-<title>SpeakDeck 2.0</title>
+<title>SpeakDeck 3.0</title>
 
 <!-- PWA Manifest (inline) -->
 <script>
@@ -178,12 +178,17 @@ body{background:var(--bg);color:var(--t);transition:background .3s,color .3s}
 
 /* ── MAIN ── */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
-.topbar{display:flex;align-items:flex-start;padding:10px 16px;border-bottom:1px solid var(--b);background:var(--s);flex-shrink:0;gap:8px;transition:background .3s}
+.topbar{display:flex;align-items:flex-start;padding:10px 16px;border-bottom:1px solid var(--b);background:var(--s);flex-shrink:0;gap:8px;transition:background .3s,max-height .25s ease,padding .25s ease,opacity .25s ease;overflow:hidden;max-height:200px;opacity:1}
+.topbar.hidden{max-height:0;padding-top:0;padding-bottom:0;border-bottom:none;opacity:0}
 .topbar-left{display:flex;align-items:flex-start;gap:10px;min-width:0;flex:1}
 .tb-actions-row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
 .menu-btn{width:36px;height:36px;background:transparent;border:1px solid var(--b);border-radius:7px;color:var(--t3);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Open Sans',sans-serif;margin-top:2px}
 .topbar h2{font-family:'Open Sans',sans-serif;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t)}
 .topbar-actions{display:flex;gap:6px;flex-shrink:0;align-items:center}
+/* toggle strip shown when topbar is hidden */
+.topbar-toggle{display:flex;align-items:center;justify-content:center;height:22px;background:var(--s);border-bottom:1px solid var(--b);cursor:pointer;flex-shrink:0;transition:background .15s}
+.topbar-toggle:active{background:var(--s2)}
+.topbar-toggle-icon{font-size:11px;color:var(--t3);letter-spacing:2px;line-height:1}
 .btn{padding:8px 14px;border-radius:7px;font-size:12px;cursor:pointer;font-family:'Open Sans',sans-serif;font-weight:500;transition:all .15s;border:none;min-height:36px;white-space:nowrap}
 .btn-gold{background:var(--gold);color:#000}
 .btn-gold:active{background:var(--gold2)}
@@ -271,8 +276,8 @@ tr.dragging{opacity:.35}
 .ltt-btn.active{background:var(--gold);color:#000;border-color:var(--gold);font-weight:700}
 
 /* ── QUOTE STYLE ── */
-.slide-quote-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:8px 0}
-.slide-quote{position:relative;padding:24px 28px;border-left:4px solid var(--gold);background:#f5c84210;border-radius:0 12px 12px 0}
+.slide-quote-wrap{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:8px 0;display:flex;align-items:flex-start;justify-content:center}
+.slide-quote{position:relative;padding:24px 28px;border-left:4px solid var(--gold);background:#f5c84210;border-radius:0 12px 12px 0;width:100%}
 .slide-quote-mark{font-size:72px;line-height:1;color:var(--gold);font-family:Georgia,serif;position:absolute;top:-10px;left:12px;opacity:.5}
 .slide-quote-text{font-size:24px;font-weight:600;font-style:italic;line-height:1.55;color:var(--t);padding-left:32px}
 .slide-quote-author{margin-top:16px;font-size:16px;font-weight:600;color:var(--gold);padding-left:32px;letter-spacing:.3px}
@@ -441,6 +446,7 @@ function showToast(msg){
 let S=loadLocal();
 S.modal=null;S.editPageIdx=null;S.confirm=null;S.editFolderTarget=null;
 S.editTopicTarget=null;S.newIconIdx=0;S.sidebarOpen=false;S.insertAfter=null;S.user=null;
+S.topbarHidden=false;
 
 window._onAuthReady=function(user){
   S.user=user;
@@ -547,7 +553,7 @@ function render(){
   sb.innerHTML=`
     <div class="logo" style="display:flex;flex-direction:column">
       <div style="display:flex;align-items:center;justify-content:space-between">
-        <div><h1>SpeakDeck</h1><p>v2.0 · Speaker Notes</p></div>
+        <div><h1>SpeakDeck</h1><p>v3.0 · Speaker Notes</p></div>
         <button class="theme-btn" id="theme-btn" title="Toggle theme">${document.body.classList.contains('light')?'🌙':'☀️'}</button>
       </div>
       ${userHtml}
@@ -677,7 +683,14 @@ function render(){
     tb.querySelector('#btn-edit').addEventListener('click',()=>{S.modal='page';S.editPageIdx=S.page;render();});
   }
   if(tb.querySelector('#menu-btn'))tb.querySelector('#menu-btn').addEventListener('click',()=>toggleSidebar());
+  if(S.topbarHidden) tb.classList.add('hidden');
   main.appendChild(tb);
+
+  // toggle strip — always visible, lets you show/hide the topbar
+  const toggleStrip=el('div','topbar-toggle');
+  toggleStrip.innerHTML=`<span class="topbar-toggle-icon">${S.topbarHidden?'▾▾▾':'▴▴▴'}</span>`;
+  toggleStrip.addEventListener('click',()=>{S.topbarHidden=!S.topbarHidden;render();});
+  main.appendChild(toggleStrip);
 
   const content=el('div','content');
   if(!topic){content.innerHTML=`<div class="empty"><div class="ei">🎤</div><h3>Welcome!</h3><p>Tap ☰ to open your folders and select a topic to get started.</p></div>`;}
