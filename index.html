@@ -231,9 +231,7 @@ tr.drag-over{border-top:2px solid var(--gold)!important}
 tr.dragging{opacity:.35}
 
 /* ── SLIDE VIEW ── */
-.slide-view{display:flex;flex-direction:column;height:100%;gap:12px;user-select:none}
-.prog-bar{height:3px;background:var(--b);border-radius:2px;flex-shrink:0}
-.prog-fill{height:100%;background:var(--gold);border-radius:2px;transition:width .3s}
+.slide-view{display:flex;flex-direction:column;height:100%;gap:8px;user-select:none}
 .slide-stage{flex:1;position:relative;overflow:hidden;min-height:0;border-radius:14px;touch-action:pan-y}
 .slide-card{position:absolute;inset:0;background:var(--card-bg);border:1px solid var(--b);border-radius:14px;padding:32px 36px;display:flex;flex-direction:column;gap:24px;overflow:hidden;transition:transform .32s cubic-bezier(.4,0,.2,1),opacity .32s;will-change:transform,opacity}
 .slide-card.swipe-left{transform:translateX(-100%);opacity:0}
@@ -260,15 +258,15 @@ tr.dragging{opacity:.35}
 .slide-pg-num{display:inline-block;font-size:13px;font-weight:700;color:var(--gold);background:#f5c84218;border:1px solid #f5c84244;border-radius:6px;padding:3px 10px;margin-bottom:10px;letter-spacing:.3px}
 .sbullet-num{width:24px;height:24px;min-width:24px;background:var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#000;margin-top:2px;flex-shrink:0}
 
-/* ── SLIDE HEADER ROW ── */
 .slide-header{display:flex;align-items:center;justify-content:flex-end;flex-shrink:0}
 .slide-add-btn{width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:#000;font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:background .15s,transform .1s;-webkit-tap-highlight-color:transparent;flex-shrink:0}
 .slide-add-btn:active{background:var(--gold2);transform:scale(.92)}
 
-.big-nav{display:flex;gap:10px;flex-shrink:0;padding:2px 0}
-.big-nav-btn{flex:1;height:46px;border-radius:10px;background:var(--gold);border:none;color:#000;font-size:22px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:'Open Sans',sans-serif;transition:background .15s,transform .1s;-webkit-tap-highlight-color:transparent}
+.big-nav{display:flex;align-items:center;gap:10px;flex-shrink:0;padding:2px 0}
+.big-nav-btn{flex:0 0 56px;height:46px;border-radius:10px;background:var(--gold);border:none;color:#000;font-size:22px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:'Open Sans',sans-serif;transition:background .15s,transform .1s;-webkit-tap-highlight-color:transparent}
 .big-nav-btn:active{background:var(--gold2);transform:scale(.97)}
 .big-nav-btn[disabled]{opacity:.25;cursor:default;transform:none}
+.big-nav .slide-dots{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:0}
 
 /* ── BULLET/NUMBER TOGGLE ── */
 .list-type-toggle{display:flex;gap:6px;margin-bottom:12px}
@@ -678,9 +676,11 @@ function render(){
             <button class="btn btn-ghost btn-sm" id="btn-edit">✎ Edit</button>
           </div>
         </div>
-      </div>`;
+      </div>
+      <button class="slide-add-btn" id="tb-add-btn" title="Add new page" style="margin-top:4px;flex-shrink:0">+</button>`;
     tb.querySelector('#btn-back').addEventListener('click',()=>{S.view='toc';render();});
     tb.querySelector('#btn-edit').addEventListener('click',()=>{S.modal='page';S.editPageIdx=S.page;render();});
+    tb.querySelector('#tb-add-btn').addEventListener('click',()=>{S.modal='page';S.editPageIdx=null;S.insertAfter=S.page;render();});
   }
   if(tb.querySelector('#menu-btn'))tb.querySelector('#menu-btn').addEventListener('click',()=>toggleSidebar());
   if(S.topbarHidden) tb.classList.add('hidden');
@@ -785,34 +785,21 @@ function renderSlideView(content,topic){
   const pct=Math.round(((idx+1)/pages.length)*100);
   const d=el('div','slide-view');
   d.innerHTML=`
-    <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:${pct}%"></div></div>
     <div class="slide-stage" id="slide-stage"></div>
-    <div class="slide-header">
-      <div class="slide-dots" id="slide-dots" style="flex:1;justify-content:flex-start;padding:0">${pages.map((_,i)=>`<div class="sdot ${i===idx?'active':''}" data-di="${i}"></div>`).join('')}</div>
-      <button class="slide-add-btn" id="slide-add-btn" title="Add new page">+</button>
-    </div>
     <div class="big-nav">
       <button class="big-nav-btn prev-btn" id="sprev" ${idx===0?'disabled':''}>←</button>
+      <div class="slide-dots" id="slide-dots">${pages.map((_,i)=>`<div class="sdot ${i===idx?'active':''}" data-di="${i}"></div>`).join('')}</div>
       <button class="big-nav-btn next-btn" id="snext" ${idx===pages.length-1?'disabled':''}>→</button>
     </div>`;
 
   const stage=d.querySelector('#slide-stage');
   stage.appendChild(buildSlideCard(topic,idx));
 
-  // "+" opens Add Page modal with insert-after current page flag
-  d.querySelector('#slide-add-btn').addEventListener('click',()=>{
-    S.modal='page';
-    S.editPageIdx=null;
-    S.insertAfter=S.page; // insert after current page
-    render();
-  });
-
   function goTo(newIdx,dir){
     if(newIdx<0||newIdx>=pages.length)return;
     S.page=newIdx;saveNav();
     const old=stage.querySelector('.slide-card');
     animateSlide(stage,old,dir,()=>buildSlideCard(topic,newIdx));
-    d.querySelector('#prog-fill').style.width=Math.round(((newIdx+1)/pages.length)*100)+'%';
     d.querySelectorAll('.sdot').forEach((dot,i)=>dot.classList.toggle('active',i===newIdx));
     d.querySelector('#sprev').disabled=newIdx===0;
     d.querySelector('#snext').disabled=newIdx===pages.length-1;
@@ -1036,8 +1023,8 @@ document.addEventListener('keydown',e=>{
   if(S.modal)return;
   const t=getTopic();
   if(S.view==='slide'){
-    if(e.key==='ArrowRight'||e.key==='ArrowDown'){if(t&&S.page<t.pages.length-1){const st=document.querySelector('#slide-stage');if(st){const old=st.querySelector('.slide-card');S.page++;saveNav();animateSlide(st,old,'next',()=>buildSlideCard(t,S.page));document.querySelector('#prog-fill').style.width=Math.round(((S.page+1)/t.pages.length)*100)+'%';document.querySelectorAll('.sdot').forEach((d,i)=>d.classList.toggle('active',i===S.page));document.querySelector('#sprev').disabled=S.page===0;document.querySelector('#snext').disabled=S.page===t.pages.length-1;}}}
-    if(e.key==='ArrowLeft'||e.key==='ArrowUp'){if(S.page>0){const st=document.querySelector('#slide-stage');if(st){const old=st.querySelector('.slide-card');S.page--;saveNav();animateSlide(st,old,'prev',()=>buildSlideCard(t,S.page));document.querySelector('#prog-fill').style.width=Math.round(((S.page+1)/t.pages.length)*100)+'%';document.querySelectorAll('.sdot').forEach((d,i)=>d.classList.toggle('active',i===S.page));document.querySelector('#sprev').disabled=S.page===0;document.querySelector('#snext').disabled=S.page===t.pages.length-1;}}}
+    if(e.key==='ArrowRight'||e.key==='ArrowDown'){if(t&&S.page<t.pages.length-1){const st=document.querySelector('#slide-stage');if(st){const old=st.querySelector('.slide-card');S.page++;saveNav();animateSlide(st,old,'next',()=>buildSlideCard(t,S.page));document.querySelectorAll('.sdot').forEach((d,i)=>d.classList.toggle('active',i===S.page));document.querySelector('#sprev').disabled=S.page===0;document.querySelector('#snext').disabled=S.page===t.pages.length-1;}}}
+    if(e.key==='ArrowLeft'||e.key==='ArrowUp'){if(S.page>0){const st=document.querySelector('#slide-stage');if(st){const old=st.querySelector('.slide-card');S.page--;saveNav();animateSlide(st,old,'prev',()=>buildSlideCard(t,S.page));document.querySelectorAll('.sdot').forEach((d,i)=>d.classList.toggle('active',i===S.page));document.querySelector('#sprev').disabled=S.page===0;document.querySelector('#snext').disabled=S.page===t.pages.length-1;}}}
     if(e.key==='Escape'){S.view='toc';render();}
   }
 });
