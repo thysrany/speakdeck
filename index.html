@@ -1,9 +1,13 @@
 <!DOCTYPE html>
+<!-- SpeakDeck v3 - Build 20260524 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#0f0f0f">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>SpeakDeck 3.0</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -722,6 +726,8 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
 
 // Initial render
 render();
+// Debug: confirm file loaded (remove after testing)
+setTimeout(function(){showToast('SpeakDeck v3 loaded ✓');},500);
 
 // Firebase — loads after render so it never blocks the app
 (function(){
