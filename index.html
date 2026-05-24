@@ -244,14 +244,12 @@ tr.dragging{opacity:.35}
 .sbullet-num{width:24px;height:24px;min-width:24px;background:var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#000;margin-top:2px;flex-shrink:0}
 
 /* ── SLIDE HEADER ROW ── */
-.slide-header{display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.slide-ctr{font-size:13px;color:var(--t3);font-weight:500}
-.slide-add-btn{width:34px;height:34px;border-radius:50%;background:var(--gold);border:none;color:#000;font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:background .15s,transform .1s;-webkit-tap-highlight-color:transparent}
+.slide-header{display:flex;align-items:center;justify-content:flex-end;flex-shrink:0}
+.slide-add-btn{width:32px;height:32px;border-radius:50%;background:var(--gold);border:none;color:#000;font-size:18px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;transition:background .15s,transform .1s;-webkit-tap-highlight-color:transparent;flex-shrink:0}
 .slide-add-btn:active{background:var(--gold2);transform:scale(.92)}
 
-
-.big-nav{display:flex;gap:12px;flex-shrink:0;padding:4px 0 2px}
-.big-nav-btn{flex:1;height:64px;border-radius:14px;background:var(--gold);border:none;color:#000;font-size:28px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:'Open Sans',sans-serif;transition:background .15s,transform .1s;-webkit-tap-highlight-color:transparent}
+.big-nav{display:flex;gap:10px;flex-shrink:0;padding:2px 0}
+.big-nav-btn{flex:1;height:46px;border-radius:10px;background:var(--gold);border:none;color:#000;font-size:22px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:'Open Sans',sans-serif;transition:background .15s,transform .1s;-webkit-tap-highlight-color:transparent}
 .big-nav-btn:active{background:var(--gold2);transform:scale(.97)}
 .big-nav-btn[disabled]{opacity:.25;cursor:default;transform:none}
 
@@ -698,13 +696,12 @@ function renderSlideView(content,topic){
   const pct=Math.round(((idx+1)/pages.length)*100);
   const d=el('div','slide-view');
   d.innerHTML=`
-    <div class="slide-header">
-      <span class="slide-ctr" id="slide-ctr">Page ${idx+1} of ${pages.length}</span>
-      <button class="slide-add-btn" id="slide-add-btn" title="Add new page">+</button>
-    </div>
     <div class="prog-bar"><div class="prog-fill" id="prog-fill" style="width:${pct}%"></div></div>
     <div class="slide-stage" id="slide-stage"></div>
-    <div class="slide-dots" id="slide-dots">${pages.map((_,i)=>`<div class="sdot ${i===idx?'active':''}" data-di="${i}"></div>`).join('')}</div>
+    <div class="slide-header">
+      <div class="slide-dots" id="slide-dots" style="flex:1;justify-content:flex-start;padding:0">${pages.map((_,i)=>`<div class="sdot ${i===idx?'active':''}" data-di="${i}"></div>`).join('')}</div>
+      <button class="slide-add-btn" id="slide-add-btn" title="Add new page">+</button>
+    </div>
     <div class="big-nav">
       <button class="big-nav-btn prev-btn" id="sprev" ${idx===0?'disabled':''}>←</button>
       <button class="big-nav-btn next-btn" id="snext" ${idx===pages.length-1?'disabled':''}>→</button>
@@ -726,7 +723,6 @@ function renderSlideView(content,topic){
     S.page=newIdx;saveData();
     const old=stage.querySelector('.slide-card');
     animateSlide(stage,old,dir,()=>buildSlideCard(topic,newIdx));
-    d.querySelector('#slide-ctr').textContent=`Page ${newIdx+1} of ${pages.length}`;
     d.querySelector('#prog-fill').style.width=Math.round(((newIdx+1)/pages.length)*100)+'%';
     d.querySelectorAll('.sdot').forEach((dot,i)=>dot.classList.toggle('active',i===newIdx));
     d.querySelector('#sprev').disabled=newIdx===0;
