@@ -729,51 +729,6 @@ render();
 // Debug: confirm file loaded (remove after testing)
 setTimeout(function(){showToast('SpeakDeck v3 loaded ✓');},500);
 
-// Firebase — loads after render so it never blocks the app
-(function(){
-  var scripts=['firebase-app-compat','firebase-auth-compat','firebase-firestore-compat'];
-  var loaded=0;
-  scripts.forEach(function(name){
-    var s=document.createElement('script');
-    s.src='https://www.gstatic.com/firebasejs/10.12.0/'+name+'.js';
-    s.onload=function(){
-      loaded++;
-      if(loaded===scripts.length) initFirebase();
-    };
-    s.onerror=function(){console.warn('Firebase script failed:',name);};
-    document.body.appendChild(s);
-  });
-  function initFirebase(){
-    try{
-      var cfg={apiKey:"AIzaSyAnDJ8sBzs8kY9xwN9yj545H7FJtbVHjCA",authDomain:"speakdeck-bb76b.firebaseapp.com",projectId:"speakdeck-bb76b",storageBucket:"speakdeck-bb76b.firebasestorage.app",messagingSenderId:"55277159527",appId:"1:55277159527:web:90abfdf1c812a7707680c2"};
-      firebase.initializeApp(cfg);
-      var auth=firebase.auth(),db=firebase.firestore();
-      window._fb={
-        signIn:function(){return auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());},
-        signOut:function(){return auth.signOut();},
-        save:function(uid,data){return db.collection('users').doc(uid).set(data);},
-        subscribe:function(uid,cb){return db.collection('users').doc(uid).onSnapshot(function(snap){if(snap.exists)cb(snap.data());});}
-      };
-      auth.onAuthStateChanged(function(user){
-        var wasUser=window._fbUser;
-        window._fbUser=user||null;
-        S.user=user;
-        if(user&&!wasUser){
-          // Just signed in — subscribe to cloud data
-          window._fb.subscribe(user.uid,function(data){
-            if(data.folders)S.folders=data.folders;
-            if(data.selectedTopicId)S.selectedTopicId=data.selectedTopicId;
-            saveNav();render();
-          });
-          render(); // update sidebar to show user name
-        } else if(!user&&wasUser){
-          render(); // just signed out — update sidebar
-        }
-        // Do NOT call render() on initial load — app already rendered from localStorage
-      });
-    }catch(e){console.warn('Firebase init failed:',e.message);}
-  }
-})();
 </script>
 </body>
 </html>
