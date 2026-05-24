@@ -453,6 +453,14 @@ window._onAuthReady=function(user){
   render();
 };
 
+// ── SAFETY FALLBACK ──
+// Render immediately from local data so page never stays blank.
+// If Firebase loads later, _onAuthReady will re-render with cloud data.
+render();
+
+// If Firebase hasn't responded in 3 seconds, it's offline — stay with local data.
+setTimeout(()=>{ if(!S.user) render(); }, 3000);
+
 
 function allTopics(){return S.folders.flatMap(f=>f.topics)}
 function getTopic(){return allTopics().find(t=>t.id===S.selectedTopicId)}
