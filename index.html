@@ -850,7 +850,7 @@ function renderModal(app){
       <div id="bullets-section" style="display:${listType==='quote'?'none':'block'}">
         <div class="fg">
           <label>Points (max 7)</label>
-          <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Enter = new point &nbsp;·&nbsp; ↵ line button = new line in same point &nbsp;·&nbsp; Paste splits lines</div>
+          <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Enter or Shift+Enter = new point (splits at cursor) &nbsp;·&nbsp; ↵ line button = new line in same point &nbsp;·&nbsp; Paste splits lines</div>
           <div class="blist" id="blist"></div>
           <button class="badd" id="badd">+ Add Point</button>
         </div>
@@ -874,7 +874,7 @@ function renderModal(app){
         ta.addEventListener('input',e=>{bullets[+ta.dataset.i]=ta.value;resize();});
         setTimeout(()=>resize(),0);
         ta.addEventListener('keydown',e=>{
-          if(e.key==='Enter'&&!e.shiftKey){
+          if(e.key==='Enter'){
             e.preventDefault();
             const i=+ta.dataset.i;
             if(bullets.length<7){
