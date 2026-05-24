@@ -10,12 +10,12 @@
 <meta name="application-name" content="SpeakDeck">
 <meta name="theme-color" content="#0f0f0f">
 <meta name="description" content="Speaker notes app — organize your talks by folders and topics">
-<title>SpeakDeck</title>
+<title>SpeakDeck 2.0</title>
 
 <!-- PWA Manifest (inline) -->
 <script>
 const manifestData = {
-  name: "SpeakDeck",
+  name: "SpeakDeck 2.0",
   short_name: "SpeakDeck",
   description: "Speaker notes app",
   start_url: "./",
@@ -213,6 +213,8 @@ body{background:var(--bg);color:var(--t);transition:background .3s,color .3s}
 .tc-acts{display:flex;gap:5px;justify-content:flex-end;flex-wrap:wrap}
 .tc-btn{background:transparent;border:1px solid var(--b);border-radius:5px;padding:5px 9px;font-size:10px;cursor:pointer;color:var(--t3);font-family:'Open Sans',sans-serif;min-height:30px}
 .tc-btn:active{color:var(--t);border-color:var(--t3)}
+.tc-btn.prs,.tc-btn.del{display:inline-flex}
+@media(max-width:640px){.tc-btn.prs,.tc-btn.del{display:none}}
 .tc-btn.prs{color:var(--gold);border-color:var(--gold)}
 .tc-btn.edt:active{color:var(--gold);border-color:var(--gold)}
 .tc-btn.del:active{color:var(--red);border-color:var(--red)}
@@ -513,7 +515,7 @@ function render(){
   sb.innerHTML=`
     <div class="logo" style="display:flex;flex-direction:column">
       <div style="display:flex;align-items:center;justify-content:space-between">
-        <div><h1>SpeakDeck</h1><p>Speaker Notes</p></div>
+        <div><h1>SpeakDeck</h1><p>v2.0 · Speaker Notes</p></div>
         <button class="theme-btn" id="theme-btn" title="Toggle theme">${document.body.classList.contains('light')?'🌙':'☀️'}</button>
       </div>
       ${userHtml}
