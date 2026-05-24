@@ -176,9 +176,10 @@ body{background:var(--bg);color:var(--t);transition:background .3s,color .3s}
 
 /* ── MAIN ── */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--b);background:var(--s);flex-shrink:0;gap:8px;min-height:56px;transition:background .3s}
-.topbar-left{display:flex;align-items:center;gap:10px;min-width:0;flex:1}
-.menu-btn{width:36px;height:36px;background:transparent;border:1px solid var(--b);border-radius:7px;color:var(--t3);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Open Sans',sans-serif}
+.topbar{display:flex;align-items:flex-start;padding:10px 16px;border-bottom:1px solid var(--b);background:var(--s);flex-shrink:0;gap:8px;transition:background .3s}
+.topbar-left{display:flex;align-items:flex-start;gap:10px;min-width:0;flex:1}
+.tb-actions-row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.menu-btn{width:36px;height:36px;background:transparent;border:1px solid var(--b);border-radius:7px;color:var(--t3);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Open Sans',sans-serif;margin-top:2px}
 .topbar h2{font-family:'Open Sans',sans-serif;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t)}
 .topbar-actions{display:flex;gap:6px;flex-shrink:0;align-items:center}
 .btn{padding:8px 14px;border-radius:7px;font-size:12px;cursor:pointer;font-family:'Open Sans',sans-serif;font-weight:500;transition:all .15s;border:none;min-height:36px;white-space:nowrap}
@@ -266,7 +267,10 @@ tr.dragging{opacity:.35}
 .slide-quote-text{font-size:24px;font-weight:600;font-style:italic;line-height:1.55;color:var(--t);padding-left:32px}
 .slide-quote-author{margin-top:16px;font-size:16px;font-weight:600;color:var(--gold);padding-left:32px;letter-spacing:.3px}
 
-/* ── AUTOSAVE TOAST ── */
+.bnewline{background:transparent;border:1px solid var(--b);border-radius:7px;color:var(--t3);width:44px;height:44px;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Open Sans',sans-serif;line-height:1.2;text-align:center}
+.bnewline:active{border-color:var(--gold);color:var(--gold)}
+
+
 .autosave-toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--toast-bg);border:1px solid var(--toast-border);border-radius:20px;padding:6px 16px;font-size:11px;color:var(--t3);z-index:999;pointer-events:none;opacity:0;transition:opacity .3s}
 .autosave-toast.show{opacity:1}
 
@@ -283,8 +287,8 @@ tr.dragging{opacity:.35}
 .fg input:focus{border-color:var(--gold)}
 .blist{display:flex;flex-direction:column;gap:8px}
 .brow{display:flex;gap:6px;align-items:center}
-.brow input{flex:1;background:var(--input-bg);border:1px solid var(--b);border-radius:8px;padding:12px 13px;color:var(--t);font-size:15px;font-family:'Open Sans',sans-serif;outline:none;-webkit-appearance:none;min-height:44px}
-.brow input:focus{border-color:var(--gold)}
+.brow input,.brow textarea{flex:1;background:var(--input-bg);border:1px solid var(--b);border-radius:8px;padding:12px 13px;color:var(--t);font-size:15px;font-family:'Open Sans',sans-serif;outline:none;-webkit-appearance:none;min-height:44px;resize:none;overflow:hidden;line-height:1.5}
+.brow input:focus,.brow textarea:focus{border-color:var(--gold)}
 .bdel{background:transparent;border:1px solid var(--b);border-radius:7px;color:var(--t3);width:44px;height:44px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'Open Sans',sans-serif}
 .bdel:active{border-color:var(--red);color:var(--red)}
 .badd{background:transparent;border:1px dashed var(--b);border-radius:7px;color:var(--t3);padding:10px 14px;cursor:pointer;font-size:13px;font-family:'Open Sans',sans-serif;margin-top:6px;width:100%;text-align:left;min-height:44px}
@@ -626,12 +630,31 @@ function render(){
   const tb=el('div','topbar');
 
   if(!topic){
-    tb.innerHTML=`<div class="topbar-left"><button class="menu-btn" id="menu-btn">☰</button><h2>SpeakDeck</h2></div><div class="topbar-actions"></div>`;
+    tb.innerHTML=`<div class="topbar-left"><button class="menu-btn" id="menu-btn">☰</button><h2>SpeakDeck</h2></div>`;
   } else if(S.view==='toc'){
-    tb.innerHTML=`<div class="topbar-left"><button class="menu-btn" id="menu-btn">☰</button><div><div class="breadcrumb">${esc(folder.name)} <span>›</span></div><h2>${esc(topic.name)}</h2></div></div><div class="topbar-actions"><button class="btn btn-gold btn-sm" id="add-page-btn">+ Add Page</button></div>`;
+    tb.innerHTML=`
+      <div class="topbar-left"><button class="menu-btn" id="menu-btn">☰</button>
+        <div style="min-width:0;flex:1">
+          <div class="breadcrumb">${esc(folder.name)} <span>›</span></div>
+          <h2>${esc(topic.name)}</h2>
+          <div class="tb-actions-row">
+            <button class="btn btn-gold btn-sm" id="add-page-btn">+ Add Page</button>
+          </div>
+        </div>
+      </div>`;
     tb.querySelector('#add-page-btn').addEventListener('click',()=>{S.modal='page';S.editPageIdx=null;render();});
   } else {
-    tb.innerHTML=`<div class="topbar-left"><button class="menu-btn" id="menu-btn">☰</button><div><div class="breadcrumb">${esc(folder.name)} <span>›</span></div><h2>${esc(topic.name)}</h2></div></div><div class="topbar-actions"><button class="btn btn-ghost btn-sm" id="btn-back">← Back</button><button class="btn btn-ghost btn-sm" id="btn-edit">Edit</button></div>`;
+    tb.innerHTML=`
+      <div class="topbar-left"><button class="menu-btn" id="menu-btn">☰</button>
+        <div style="min-width:0;flex:1">
+          <div class="breadcrumb">${esc(folder.name)} <span>›</span></div>
+          <h2>${esc(topic.name)}</h2>
+          <div class="tb-actions-row">
+            <button class="btn btn-ghost btn-sm" id="btn-back">← Back</button>
+            <button class="btn btn-ghost btn-sm" id="btn-edit">✎ Edit</button>
+          </div>
+        </div>
+      </div>`;
     tb.querySelector('#btn-back').addEventListener('click',()=>{S.view='toc';render();});
     tb.querySelector('#btn-edit').addEventListener('click',()=>{S.modal='page';S.editPageIdx=S.page;render();});
   }
@@ -663,7 +686,7 @@ function buildSlideCard(topic,idx){
     </div>`;
   } else {
     const isNum=listType==='number';
-    bodyHTML=`<div class="slide-bullets">${(page.bullets||[]).map((b,i)=>`<div class="sbullet">${isNum?`<div class="sbullet-num">${i+1}</div>`:'<div class="sbullet-dot"></div>'}<div>${esc(b)}</div></div>`).join('')}</div>`;
+    bodyHTML=`<div class="slide-bullets">${(page.bullets||[]).map((b,i)=>`<div class="sbullet">${isNum?`<div class="sbullet-num">${i+1}</div>`:'<div class="sbullet-dot"></div>'}<div>${esc(b).replace(/\n/g,'<br>')}</div></div>`).join('')}</div>`;
   }
 
   card.innerHTML=`<div><div class="slide-pg-num">Page ${idx+1} of ${topic.pages.length}</div><div class="slide-stitle">${esc(page.title)}</div></div>${bodyHTML}`;
@@ -753,7 +776,12 @@ function renderModal(app){
         </div>
       </div>
       <div id="bullets-section" style="display:${listType==='quote'?'none':'block'}">
-        <div class="fg"><label>Points (max 7)</label><div class="blist" id="blist"></div><button class="badd" id="badd">+ Add Point</button></div>
+        <div class="fg">
+          <label>Points (max 7)</label>
+          <div style="font-size:10px;color:var(--t3);margin-bottom:8px">Enter = new point &nbsp;·&nbsp; ↵ line button = new line in same point &nbsp;·&nbsp; Paste splits lines</div>
+          <div class="blist" id="blist"></div>
+          <button class="badd" id="badd">+ Add Point</button>
+        </div>
       </div>
       <div id="quote-section" style="display:${listType==='quote'?'block':'none'}">
         <div class="fg"><label>Quote Text</label><input id="quote-text" value="${ex&&ex.quoteText?esc(ex.quoteText):''}" placeholder="Enter the quote here..." autocomplete="off"></div>
@@ -761,7 +789,60 @@ function renderModal(app){
       </div>
       <div class="macts">${editing?`<button class="btn btn-red" id="del-pg-btn">Delete</button>`:''}<button class="btn btn-ghost" id="mcancel">Cancel</button><button class="btn btn-gold" id="msave">${editing?'Save':'Add Page'}</button></div>`;
 
-    const upd=()=>{const bl=m.querySelector('#blist');bl.innerHTML=bullets.map((_,i)=>`<div class="brow"><input class="bi" data-i="${i}" value="${esc(bullets[i]||'')}" placeholder="Point ${i+1}..."><button class="bdel" data-d="${i}">×</button></div>`).join('');bl.querySelectorAll('.bi').forEach(inp=>inp.addEventListener('input',e=>{bullets[+inp.dataset.i]=e.target.value;}));bl.querySelectorAll('.bdel').forEach(btn=>btn.addEventListener('click',()=>{bullets.splice(+btn.dataset.d,1);upd();}));};upd();
+    const upd=(focusIdx=-1)=>{
+      const bl=m.querySelector('#blist');
+      bl.innerHTML=bullets.map((_,i)=>`
+        <div class="brow">
+          <textarea class="bi" data-i="${i}" rows="1" placeholder="Point ${i+1}... (Enter = new point)">${esc(bullets[i]||'')}</textarea>
+          <button class="bnewline" data-nl="${i}" title="New line in this point">↵<br>line</button>
+          <button class="bdel" data-d="${i}">×</button>
+        </div>`).join('');
+      bl.querySelectorAll('.bi').forEach(ta=>{
+        const resize=()=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';};
+        ta.addEventListener('input',e=>{bullets[+ta.dataset.i]=ta.value;resize();});
+        setTimeout(()=>resize(),0);
+        ta.addEventListener('keydown',e=>{
+          if(e.key==='Enter'&&!e.shiftKey){
+            e.preventDefault();
+            const i=+ta.dataset.i;
+            if(bullets.length<7){bullets.splice(i+1,0,'');upd(i+1);}
+          }
+        });
+        ta.addEventListener('paste',e=>{
+          e.preventDefault();
+          const text=(e.clipboardData||window.clipboardData).getData('text');
+          const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(l=>l);
+          if(!lines.length) return;
+          const i=+ta.dataset.i;
+          bullets.splice(i,1,...lines);
+          if(bullets.length>7) bullets.length=7;
+          upd(i+lines.length-1);
+        });
+      });
+      // newline button — inserts \n at cursor position in that bullet
+      bl.querySelectorAll('.bnewline').forEach(btn=>btn.addEventListener('click',()=>{
+        const i=+btn.dataset.nl;
+        const ta=bl.querySelectorAll('.bi')[i];
+        const pos=ta.selectionStart;
+        const val=ta.value;
+        bullets[i]=val.slice(0,pos)+'\n'+val.slice(pos);
+        upd(i);
+        // reposition cursor after the \n
+        setTimeout(()=>{
+          const newTa=m.querySelector('#blist').querySelectorAll('.bi')[i];
+          if(newTa){newTa.focus();newTa.setSelectionRange(pos+1,pos+1);}
+        },10);
+      }));
+      bl.querySelectorAll('.bdel').forEach(btn=>btn.addEventListener('click',()=>{
+        if(bullets.length>1){bullets.splice(+btn.dataset.d,1);upd();}
+        else{bullets[0]='';upd(0);}
+      }));
+      if(focusIdx>=0){
+        const targets=bl.querySelectorAll('.bi');
+        const target=targets[Math.min(focusIdx,targets.length-1)];
+        if(target){setTimeout(()=>{target.focus();const l=target.value.length;target.setSelectionRange(l,l);},10);}
+      }
+    };upd();
     m.querySelectorAll('.ltt-btn').forEach(btn=>{btn.addEventListener('click',()=>{
       listType=btn.dataset.lt;
       m.querySelectorAll('.ltt-btn').forEach(b=>b.classList.remove('active'));
@@ -769,7 +850,7 @@ function renderModal(app){
       m.querySelector('#bullets-section').style.display=listType==='quote'?'none':'block';
       m.querySelector('#quote-section').style.display=listType==='quote'?'block':'none';
     });});
-    m.querySelector('#badd').addEventListener('click',()=>{if(bullets.length<7){bullets.push('');upd();}});
+    m.querySelector('#badd').addEventListener('click',()=>{if(bullets.length<7){bullets.push('');upd(bullets.length-1);}});
     m.querySelector('#mcancel').addEventListener('click',()=>{S.modal=null;S.insertAfter=null;render();});
     if(editing)m.querySelector('#del-pg-btn').addEventListener('click',()=>{S.modal='confirm';S.confirm={type:'del-page',idx:S.editPageIdx,label:`Delete "${ex.title}"?`,desc:'This page will be permanently removed.'};render();});
     m.querySelector('#msave').addEventListener('click',()=>{
