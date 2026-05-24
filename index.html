@@ -403,8 +403,7 @@ function saveToFirebase(){
       await window._fb.save(window._fbUser.uid,{folders:S.folders,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()});
       showToast('Synced ✓');
     }catch(e){ showToast('Saved locally'); }
-  },800);
-}
+  },800);}
 function subscribeFirebase(){
   if(_unsub){ _unsub(); _unsub=null; }
   if(!window._fbUser||!window._fb) return;
@@ -416,7 +415,8 @@ function subscribeFirebase(){
   });
 }
 
-function saveData(){ saveLocal(); saveToFirebase(); }
+function saveData(){ saveLocal(); saveToFirebase(); }  // content changed → sync to Firebase
+function saveNav(){ saveLocal(); }                     // navigation only → local only
 
 // ── TOAST ──
 let toastTimer=null;
@@ -597,7 +597,7 @@ function render(){
     row.addEventListener('click',e=>{
       if(e.target.closest('.tactions'))return;
       S.selectedTopicId=+row.dataset.tid;S.view='toc';S.page=0;
-      saveData();toggleSidebar(false);render();
+      saveNav();toggleSidebar(false);render();
     });
   });
   // edit topic
@@ -722,7 +722,7 @@ function renderSlideView(content,topic){
 
   function goTo(newIdx,dir){
     if(newIdx<0||newIdx>=pages.length)return;
-    S.page=newIdx;saveData();
+    S.page=newIdx;saveNav();
     const old=stage.querySelector('.slide-card');
     animateSlide(stage,old,dir,()=>buildSlideCard(topic,newIdx));
     d.querySelector('#prog-fill').style.width=Math.round(((newIdx+1)/pages.length)*100)+'%';
@@ -744,8 +744,8 @@ function renderTOC(content,topic){
   d.innerHTML=`<div class="toc-hdr"><h3>${esc(topic.name)}</h3><p>${topic.pages.length} page${topic.pages.length!==1?'s':''} · Tap to present · Drag ⠿ to reorder</p></div>
     <table class="toc-table"><thead><tr><th></th><th>#</th><th>Title</th><th></th></tr></thead>
     <tbody>${topic.pages.map((p,i)=>`<tr data-idx="${i}"><td><span class="dhandle" draggable="true" data-drag="${i}">⠿</span></td><td class="tc-num">${i+1}</td><td class="tc-title" data-goto="${i}">${esc(p.title)}</td><td class="tc-acts"><button class="tc-btn prs" data-prs="${i}">▶</button><button class="tc-btn edt" data-edt="${i}">Edit</button><button class="tc-btn del" data-del="${i}">Del</button></td></tr>`).join('')}</tbody></table>`;
-  d.querySelectorAll('[data-goto]').forEach(c=>{c.addEventListener('click',()=>{S.page=+c.dataset.goto;S.view='slide';saveData();render();});});
-  d.querySelectorAll('[data-prs]').forEach(b=>{b.addEventListener('click',()=>{S.page=+b.dataset.prs;S.view='slide';saveData();render();});});
+  d.querySelectorAll('[data-goto]').forEach(c=>{c.addEventListener('click',()=>{S.page=+c.dataset.goto;S.view='slide';saveNav();render();});});
+  d.querySelectorAll('[data-prs]').forEach(b=>{b.addEventListener('click',()=>{S.page=+b.dataset.prs;S.view='slide';saveNav();render();});});
   d.querySelectorAll('[data-edt]').forEach(b=>{b.addEventListener('click',()=>{S.modal='page';S.editPageIdx=+b.dataset.edt;render();});});
   d.querySelectorAll('[data-del]').forEach(b=>{b.addEventListener('click',()=>{S.modal='confirm';S.confirm={type:'del-page',idx:+b.dataset.del,label:`Delete "${topic.pages[+b.dataset.del].title}"?`,desc:'This page will be permanently removed.'};render();});});
   let dragIdx=null;
@@ -931,8 +931,8 @@ document.addEventListener('keydown',e=>{
   if(S.modal)return;
   const t=getTopic();
   if(S.view==='slide'){
-    if(e.key==='ArrowRight'||e.key==='ArrowDown'){if(t&&S.page<t.pages.length-1){const st=document.querySelector('#slide-stage');if(st){const old=st.querySelector('.slide-card');S.page++;saveData();animateSlide(st,old,'next',()=>buildSlideCard(t,S.page));document.querySelector('#prog-fill').style.width=Math.round(((S.page+1)/t.pages.length)*100)+'%';document.querySelectorAll('.sdot').forEach((d,i)=>d.classList.toggle('active',i===S.page));document.querySelector('#sprev').disabled=S.page===0;document.querySelector('#snext').disabled=S.page===t.pages.length-1;}}}
-    if(e.key==='ArrowLeft'||e.key==='ArrowUp'){if(S.page>0){const st=document.querySelector('#slide-stage');if(st){const old=st.querySelector('.slide-card');S.page--;saveData();animateSlide(st,old,'prev',()=>buildSlideCard(t,S.page));document.querySelector('#prog-fill').style.width=Math.round(((S.page+1)/t.pages.length)*100)+'%';document.querySelectorAll('.sdot').forEach((d,i)=>d.classList.toggle('active',i===S.page));document.querySelector('#sprev').disabled=S.page===0;document.querySelector('#snext').disabled=S.page===t.pages.length-1;}}}
+    if(e.key==='ArrowRight'||e.key==='ArrowDown'){if(t&&S.page<t.pages.length-1){const st=document.querySelector('#slide-stage');if(st){const old=st.querySelector('.slide-card');S.page++;saveNav();animateSlide(st,old,'next',()=>buildSlideCard(t,S.page));document.querySelector('#prog-fill').style.width=Math.round(((S.page+1)/t.pages.length)*100)+'%';document.querySelectorAll('.sdot').forEach((d,i)=>d.classList.toggle('active',i===S.page));document.querySelector('#sprev').disabled=S.page===0;document.querySelector('#snext').disabled=S.page===t.pages.length-1;}}}
+    if(e.key==='ArrowLeft'||e.key==='ArrowUp'){if(S.page>0){const st=document.querySelector('#slide-stage');if(st){const old=st.querySelector('.slide-card');S.page--;saveNav();animateSlide(st,old,'prev',()=>buildSlideCard(t,S.page));document.querySelector('#prog-fill').style.width=Math.round(((S.page+1)/t.pages.length)*100)+'%';document.querySelectorAll('.sdot').forEach((d,i)=>d.classList.toggle('active',i===S.page));document.querySelector('#sprev').disabled=S.page===0;document.querySelector('#snext').disabled=S.page===t.pages.length-1;}}}
     if(e.key==='Escape'){S.view='toc';render();}
   }
 });
