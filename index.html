@@ -1020,7 +1020,12 @@ function renderModal(app){
 }
 
 document.addEventListener('keydown',e=>{
-  if(S.modal)return;
+  // Never intercept when typing in an input, textarea, or contenteditable
+  const tag=document.activeElement&&document.activeElement.tagName;
+  if(tag==='INPUT'||tag==='TEXTAREA'||document.activeElement.isContentEditable) return;
+  // Never intercept system shortcuts (Ctrl/Cmd + anything)
+  if(e.ctrlKey||e.metaKey) return;
+  if(S.modal) return;
   const t=getTopic();
   if(S.view==='slide'){
     if(e.key==='ArrowRight'||e.key==='ArrowDown'){if(t&&S.page<t.pages.length-1){const st=document.querySelector('#slide-stage');if(st){const old=st.querySelector('.slide-card');S.page++;saveNav();animateSlide(st,old,'next',()=>buildSlideCard(t,S.page));document.querySelectorAll('.sdot').forEach((d,i)=>d.classList.toggle('active',i===S.page));document.querySelector('#sprev').disabled=S.page===0;document.querySelector('#snext').disabled=S.page===t.pages.length-1;}}}
