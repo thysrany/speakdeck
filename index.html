@@ -266,11 +266,8 @@ function loadData(){
 }
 function saveData(){
   try{localStorage.setItem(SAVE_KEY,JSON.stringify({folders:S.folders,selectedTopicId:S.selectedTopicId,view:S.view,page:S.page}));}catch(e){}
-  if(window._fb&&window._fbUser){
-    clearTimeout(window._saveTimer);
-    window._saveTimer=setTimeout(function(){
-      try{window._fb.save(window._fbUser.uid,{folders:S.folders,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()}).then(function(){showToast('Synced ✓');}).catch(function(){});}catch(e){}
-    },800);
+  if(window._fb&&window._fbUser&&window._fbUser.uid){
+    window._fb.save(window._fbUser.uid,{folders:S.folders,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()});
   }
 }
 function saveNav(){
@@ -746,6 +743,185 @@ document.addEventListener('keydown',function(e){
 
 // Wire up overlay
 document.getElementById('sb-overlay').addEventListener('click',function(){toggleSidebar(false);});
+
+// ── FIREBASE SYNC via REST API (no external scripts) ──
+(function(){
+  var PROJECT = 'speakdeck-bb76b';
+  var API_KEY  = 'AIzaSyAnDJ8sBzs8kY9xwN9yj545H7FJtbVHjCA';
+  var CLIENT_ID= '55277159527-53fbmbof24n7rhs44h6qtp58atcgqe6i.apps.googleusercontent.com';
+  var FS_URL   = 'https://firestore.googleapis.com/v1/projects/'+PROJECT+'/databases/(default)/documents/users/';
+
+  // ── Restore saved session ──
+  function getSavedUser(){
+    try{ var u=localStorage.getItem('speakdeck_user'); return u?JSON.parse(u):null; }catch(e){return null;}
+  }
+  function saveUser(u){
+    try{ localStorage.setItem('speakdeck_user', JSON.stringify(u)); }catch(e){}
+  }
+  function clearUser(){
+    try{ localStorage.removeItem('speakdeck_user'); }catch(e){}
+  }
+
+  // ── Firestore REST helpers ──
+  function fsGet(uid, token){
+    return fetch(FS_URL+uid, {headers:{'Authorization':'Bearer '+token}})
+      .then(function(r){ return r.ok ? r.json() : null; });
+  }
+  function fsSave(uid, token, data){
+    var fields = toFields(data);
+    return fetch(FS_URL+uid+'?key='+API_KEY, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json', 'Authorization':'Bearer '+token},
+      body: JSON.stringify({fields: fields})
+    });
+  }
+
+  // ── Firestore value converters ──
+  function toFields(obj){
+    var f={};
+    Object.keys(obj).forEach(function(k){ f[k]=toVal(obj[k]); });
+    return f;
+  }
+  function toVal(v){
+    if(v===null||v===undefined) return {nullValue:null};
+    if(typeof v==='boolean')    return {booleanValue:v};
+    if(typeof v==='number')     return {integerValue:''+v};
+    if(typeof v==='string')     return {stringValue:v};
+    if(Array.isArray(v))        return {arrayValue:{values:v.map(toVal)}};
+    if(typeof v==='object')     return {mapValue:{fields:toFields(v)}};
+    return {stringValue:''+v};
+  }
+  function fromFields(fields){
+    if(!fields) return {};
+    var obj={};
+    Object.keys(fields).forEach(function(k){ obj[k]=fromVal(fields[k]); });
+    return obj;
+  }
+  function fromVal(v){
+    if(!v) return null;
+    if('nullValue'    in v) return null;
+    if('booleanValue' in v) return v.booleanValue;
+    if('integerValue' in v) return Number(v.integerValue);
+    if('doubleValue'  in v) return v.doubleValue;
+    if('stringValue'  in v) return v.stringValue;
+    if('arrayValue'   in v) return (v.arrayValue.values||[]).map(fromVal);
+    if('mapValue'     in v) return fromFields(v.mapValue.fields||{});
+    return null;
+  }
+
+  // ── Google Identity Services sign-in ──
+  function loadGIS(cb){
+    if(window.google&&google.accounts){ cb(); return; }
+    var s=document.createElement('script');
+    s.src='https://accounts.google.com/gsi/client';
+    s.onload=cb;
+    s.onerror=function(){ showToast('Sign-in unavailable'); };
+    document.head.appendChild(s);
+  }
+
+  function doSignIn(){
+    loadGIS(function(){
+      google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: 'profile email https://www.googleapis.com/auth/datastore',
+        callback: function(resp){
+          if(resp.error){ showToast('Sign-in failed'); return; }
+          var token = resp.access_token;
+          // Get user info
+          fetch('https://www.googleapis.com/oauth2/v3/userinfo',{
+            headers:{'Authorization':'Bearer '+token}
+          }).then(function(r){ return r.json(); })
+          .then(function(info){
+            var user={
+              uid: info.sub,
+              email: info.email,
+              displayName: info.name,
+              photoURL: info.picture,
+              idToken: token,
+              tokenExpiry: Date.now() + (resp.expires_in||3600)*1000
+            };
+            window._fbUser = user;
+            S.user = user;
+            saveUser(user);
+            showToast('Signed in!');
+            // Load cloud data then sync
+            fsGet(user.uid, token).then(function(doc){
+              if(doc&&doc.fields){
+                var data=fromFields(doc.fields);
+                if(data.folders){ S.folders=data.folders; }
+                if(data.selectedTopicId){ S.selectedTopicId=data.selectedTopicId; }
+                saveNav();
+              }
+              render();
+            });
+          }).catch(function(){ showToast('Could not get user info'); });
+        }
+      }).requestAccessToken();
+    });
+  }
+
+  function doSignOut(){
+    if(window.google&&google.accounts){
+      google.accounts.oauth2.revoke(window._fbUser&&window._fbUser.idToken||'', function(){});
+    }
+    window._fbUser=null; S.user=null;
+    clearUser(); render();
+    showToast('Signed out');
+  }
+
+  // ── Token refresh check ──
+  function getToken(){
+    var u=window._fbUser||getSavedUser();
+    if(!u||!u.idToken) return null;
+    if(u.tokenExpiry&&Date.now()>u.tokenExpiry-60000) return null; // expired
+    return u.idToken;
+  }
+
+  // ── Expose API ──
+  window._fb = {
+    signIn:  doSignIn,
+    signOut: doSignOut,
+    save: function(uid, data){
+      var token=getToken();
+      if(!token) return;
+      clearTimeout(window._fbSaveTimer);
+      window._fbSaveTimer=setTimeout(function(){
+        fsSave(uid, token, data)
+          .then(function(r){ if(r.ok) showToast('Synced ✓'); })
+          .catch(function(){ showToast('Sync failed'); });
+      }, 800);
+    },
+    subscribe: function(uid){ /* polling handled on sign-in */ }
+  };
+
+  // ── Restore session on load ──
+  var saved = getSavedUser();
+  if(saved){
+    var token = saved.idToken;
+    var expired = saved.tokenExpiry && Date.now() > saved.tokenExpiry - 60000;
+    if(!expired && token){
+      window._fbUser = saved;
+      S.user = saved;
+      // Load latest cloud data silently
+      fsGet(saved.uid, token).then(function(doc){
+        if(doc&&doc.fields){
+          var data=fromFields(doc.fields);
+          if(data.folders){ S.folders=data.folders; }
+          if(data.selectedTopicId){ S.selectedTopicId=data.selectedTopicId; }
+          saveNav();
+        }
+        render(); // update sidebar with user info
+      }).catch(function(){
+        render(); // show user info even if cloud fetch fails
+      });
+    } else {
+      // Token expired — clear and show sign-in
+      clearUser();
+      render();
+    }
+  }
+})();
+
 
 // Initial render
 try{ render(); }catch(e){ console.error("Render error:",e); }
