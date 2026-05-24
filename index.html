@@ -749,16 +749,21 @@ render();
         subscribe:function(uid,cb){return db.collection('users').doc(uid).onSnapshot(function(snap){if(snap.exists)cb(snap.data());});}
       };
       auth.onAuthStateChanged(function(user){
+        var wasUser=window._fbUser;
         window._fbUser=user||null;
         S.user=user;
-        if(user){
+        if(user&&!wasUser){
+          // Just signed in — subscribe to cloud data
           window._fb.subscribe(user.uid,function(data){
             if(data.folders)S.folders=data.folders;
             if(data.selectedTopicId)S.selectedTopicId=data.selectedTopicId;
             saveNav();render();
           });
+          render(); // update sidebar to show user name
+        } else if(!user&&wasUser){
+          render(); // just signed out — update sidebar
         }
-        render();
+        // Do NOT call render() on initial load — app already rendered from localStorage
       });
     }catch(e){console.warn('Firebase init failed:',e.message);}
   }
