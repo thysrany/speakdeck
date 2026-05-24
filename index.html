@@ -862,6 +862,7 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
                 }).then(function(){ showToast('Notes uploaded to cloud ✓'); });
               }
               render();
+              startPolling(user.uid);
             }).catch(function(){
               // Network error — keep local data
               render();
@@ -876,6 +877,7 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
     if(window.google&&google.accounts){
       google.accounts.oauth2.revoke(window._fbUser&&window._fbUser.idToken||'', function(){});
     }
+    stopPolling();
     window._fbUser=null; S.user=null;
     clearUser(); render();
     showToast('Signed out');
@@ -889,6 +891,36 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
     return u.idToken;
   }
 
+  // ── Live sync polling ──
+  var _lastUpdatedAt = 0;
+  var _pollInterval = null;
+
+  function startPolling(uid){
+    stopPolling();
+    _pollInterval = setInterval(function(){
+      var token = getToken();
+      if(!token){ stopPolling(); return; }
+      fsGet(uid, token).then(function(doc){
+        if(!doc||!doc.fields) return;
+        var data = fromFields(doc.fields);
+        // Only update if cloud is newer than what we last saved
+        var cloudTime = data.updatedAt || 0;
+        if(cloudTime > _lastUpdatedAt && data.folders && data.folders.length){
+          _lastUpdatedAt = cloudTime;
+          S.folders = data.folders;
+          if(data.selectedTopicId) S.selectedTopicId = data.selectedTopicId;
+          saveNav();
+          render();
+          showToast('Synced ✓');
+        }
+      }).catch(function(){});
+    }, 15000); // check every 15 seconds
+  }
+
+  function stopPolling(){
+    if(_pollInterval){ clearInterval(_pollInterval); _pollInterval=null; }
+  }
+
   // ── Expose API ──
   window._fb = {
     signIn:  doSignIn,
@@ -897,13 +929,15 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
       var token=getToken();
       if(!token) return;
       clearTimeout(window._fbSaveTimer);
+      _lastUpdatedAt = data.updatedAt || Date.now(); // mark our own save time
       window._fbSaveTimer=setTimeout(function(){
         fsSave(uid, token, data)
           .then(function(r){ if(r.ok) showToast('Synced ✓'); })
           .catch(function(){ showToast('Sync failed'); });
       }, 800);
     },
-    subscribe: function(uid){ /* polling handled on sign-in */ }
+    subscribe: function(uid){ startPolling(uid); },
+    unsubscribe: stopPolling
   };
 
   // ── Restore session on load ──
@@ -931,6 +965,7 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
           fsSave(saved.uid, token, {folders:S.folders,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()});
         }
         render();
+        startPolling(saved.uid);
       }).catch(function(){
         render();
       });
