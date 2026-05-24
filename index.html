@@ -186,9 +186,9 @@ body{background:var(--bg);color:var(--t);transition:background .3s,color .3s}
 .topbar h2{font-family:'Open Sans',sans-serif;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t)}
 .topbar-actions{display:flex;gap:6px;flex-shrink:0;align-items:center}
 /* toggle strip shown when topbar is hidden */
-.topbar-toggle{display:flex;align-items:center;justify-content:center;height:22px;background:var(--s);border-bottom:1px solid var(--b);cursor:pointer;flex-shrink:0;transition:background .15s}
+.topbar-toggle{display:flex;align-items:center;justify-content:center;height:24px;background:var(--s);border-bottom:1px solid var(--b);cursor:pointer;flex-shrink:0;transition:background .15s}
 .topbar-toggle:active{background:var(--s2)}
-.topbar-toggle-icon{font-size:11px;color:var(--t3);letter-spacing:2px;line-height:1}
+.topbar-toggle-icon{font-size:16px;color:var(--gold);line-height:1;font-weight:900}
 .btn{padding:8px 14px;border-radius:7px;font-size:12px;cursor:pointer;font-family:'Open Sans',sans-serif;font-weight:500;transition:all .15s;border:none;min-height:36px;white-space:nowrap}
 .btn-gold{background:var(--gold);color:#000}
 .btn-gold:active{background:var(--gold2)}
@@ -688,7 +688,7 @@ function render(){
 
   // toggle strip — always visible, lets you show/hide the topbar
   const toggleStrip=el('div','topbar-toggle');
-  toggleStrip.innerHTML=`<span class="topbar-toggle-icon">${S.topbarHidden?'▾▾▾':'▴▴▴'}</span>`;
+  toggleStrip.innerHTML=`<span class="topbar-toggle-icon">${S.topbarHidden?'▼':'▲'}</span>`;
   toggleStrip.addEventListener('click',()=>{S.topbarHidden=!S.topbarHidden;render();});
   main.appendChild(toggleStrip);
 
