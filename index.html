@@ -334,40 +334,33 @@ tr.dragging{opacity:.35}
 <div class="app" id="app"></div>
 <div class="sb-overlay" id="sb-overlay"></div>
 
-<!-- Firebase SDK -->
-<script type="module">
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
-  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-import { getFirestore, doc, setDoc, onSnapshot }
-  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-
-const firebaseConfig = {
-  apiKey: "AIzaSyAnDJ8sBzs8kY9xwN9yj545H7FJtbVHjCA",
-  authDomain: "speakdeck-bb76b.firebaseapp.com",
-  projectId: "speakdeck-bb76b",
-  storageBucket: "speakdeck-bb76b.firebasestorage.app",
-  messagingSenderId: "55277159527",
-  appId: "1:55277159527:web:90abfdf1c812a7707680c2"
-};
-const fbApp  = initializeApp(firebaseConfig);
-const auth   = getAuth(fbApp);
-const db     = getFirestore(fbApp);
-const prov   = new GoogleAuthProvider();
-
-window._fb = {
-  signIn:  ()=>signInWithPopup(auth, prov),
-  signOut: ()=>signOut(auth),
-  save: async(uid, data)=>{
-    await setDoc(doc(db,'users',uid), data);
-  },
-  subscribe: (uid, cb)=>onSnapshot(doc(db,'users',uid), snap=>{ if(snap.exists()) cb(snap.data()); })
-};
-
-onAuthStateChanged(auth, user=>{
-  window._fbUser = user||null;
-  if(typeof window._onAuthReady==='function') window._onAuthReady(user);
-});
+<!-- Firebase UMD — works on file:// and HTTPS alike -->
+<script>window._fb=null;window._fbUser=null;</script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" onerror="console.warn('Firebase SDK failed to load')"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+// This runs AFTER UMD scripts above — firebase global is now available
+if(typeof firebase !== 'undefined'){
+  try{
+    const cfg={apiKey:"AIzaSyAnDJ8sBzs8kY9xwN9yj545H7FJtbVHjCA",authDomain:"speakdeck-bb76b.firebaseapp.com",projectId:"speakdeck-bb76b",storageBucket:"speakdeck-bb76b.firebasestorage.app",messagingSenderId:"55277159527",appId:"1:55277159527:web:90abfdf1c812a7707680c2"};
+    firebase.initializeApp(cfg);
+    const auth=firebase.auth();
+    const db=firebase.firestore();
+    window._fb={
+      signIn:()=>auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()),
+      signOut:()=>auth.signOut(),
+      save:(uid,data)=>db.collection('users').doc(uid).set(data),
+      subscribe:(uid,cb)=>db.collection('users').doc(uid).onSnapshot(snap=>{if(snap.exists)cb(snap.data());})
+    };
+    auth.onAuthStateChanged(user=>{
+      window._fbUser=user||null;
+      if(typeof window._onAuthReady==='function') window._onAuthReady(user);
+    });
+  }catch(e){console.warn('Firebase init failed:',e.message);}
+} else {
+  console.warn('Firebase unavailable, running offline');
+}
 </script>
 
 <script>
