@@ -235,7 +235,11 @@ tr.dragging{opacity:.35}
 .slide-card.incoming-left{transform:translateX(-100%);opacity:0;transition:none}
 .slide-card.center{transform:translateX(0);opacity:1}
 .slide-card.dragging-card{transition:none}
-.slide-stitle{font-family:'Open Sans',sans-serif;font-size:32px;font-weight:800;line-height:1.15;border-bottom:1px solid var(--b);padding-bottom:20px;flex-shrink:0;color:var(--t)}
+.slide-stitle{font-family:'Open Sans',sans-serif;font-size:32px;font-weight:800;line-height:1.15;border-bottom:1px solid var(--b);padding-bottom:20px;flex-shrink:0;color:var(--t);cursor:pointer;border-radius:8px;padding:8px 6px 20px;margin:-8px -6px 0;transition:background .15s}
+.slide-stitle:hover{background:#f5c84214}
+.slide-stitle.copied{background:#f5c84233}
+.slide-stitle-text{user-select:text;-webkit-user-select:text}
+@media(max-width:640px){.slide-stitle-text{user-select:none;-webkit-user-select:none}}
 .slide-bullets{display:flex;flex-direction:column;gap:16px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sbullet{display:flex;align-items:flex-start;gap:14px;font-size:22px;font-weight:500;line-height:1.4;color:var(--t);cursor:pointer;border-radius:8px;padding:4px 6px;margin:-4px -6px;transition:background .15s}
 .sbullet:hover{background:#f5c84214}
@@ -697,7 +701,23 @@ function buildSlideCard(topic,idx){
       </div>`).join('')}</div>`;
   }
 
-  card.innerHTML=`<div><div class="slide-pg-num">Page ${idx+1} of ${topic.pages.length}</div><div class="slide-stitle">${esc(page.title)}</div></div>${bodyHTML}`;
+  card.innerHTML=`<div><div class="slide-pg-num">Page ${idx+1} of ${topic.pages.length}</div><div class="slide-stitle" data-titletext="${esc(page.title)}"><span class="slide-stitle-text">${esc(page.title)}</span></div></div>${bodyHTML}`;
+
+  // Long-press to copy title on mobile
+  const titleEl=card.querySelector('.slide-stitle[data-titletext]');
+  if(titleEl){
+    let pressTimer=null;
+    function startPress(){pressTimer=setTimeout(()=>{
+      navigator.clipboard.writeText(titleEl.dataset.titletext).then(()=>{
+        titleEl.classList.add('copied');showToast('Copied!');
+        setTimeout(()=>titleEl.classList.remove('copied'),600);
+      }).catch(()=>showToast('Copy failed'));
+    },500);}
+    function cancelPress(){clearTimeout(pressTimer);}
+    titleEl.addEventListener('touchstart',startPress,{passive:true});
+    titleEl.addEventListener('touchend',cancelPress,{passive:true});
+    titleEl.addEventListener('touchmove',cancelPress,{passive:true});
+  }
 
   // Long-press to copy on mobile
   card.querySelectorAll('.sbullet[data-btext]').forEach(row=>{
