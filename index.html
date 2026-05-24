@@ -167,6 +167,8 @@ body{background:var(--bg);color:var(--t);transition:background .3s,color .3s}
 .topic-row .tactions{display:flex;gap:3px;flex-shrink:0}
 .add-topic-btn{display:flex;align-items:center;gap:5px;padding:6px 12px 6px 30px;font-size:12px;color:var(--t3);cursor:pointer;transition:color .15s;min-height:32px}
 .add-topic-btn:active{color:var(--gold)}
+.paste-topic-btn{display:flex;align-items:center;gap:5px;padding:6px 12px 6px 30px;font-size:11px;color:var(--gold);cursor:pointer;transition:color .15s;min-height:32px;font-weight:600;border-top:1px dashed #f5c84244}
+.paste-topic-btn:active{color:var(--gold2)}
 .add-folder-btn{margin:6px 12px 10px;padding:9px;background:transparent;border:1px dashed var(--faction-border);border-radius:7px;color:var(--faction-color);font-size:12px;cursor:pointer;width:calc(100% - 24px);text-align:left;transition:all .15s;font-family:'Open Sans',sans-serif}
 .add-folder-btn:active{border-color:var(--gold);color:var(--gold)}
 
@@ -454,6 +456,28 @@ function getFolderOf(tid){return S.folders.find(f=>f.topics.some(t=>t.id===tid))
 function el(tag,cls){const e=document.createElement(tag);if(cls)e.className=cls;return e;}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
+// Universal copy — works on Android even without HTTPS clipboard API
+function copyText(text, onSuccess, onFail){
+  // Method 1: modern clipboard API
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(onSuccess).catch(()=>fallback());
+  } else { fallback(); }
+
+  function fallback(){
+    try{
+      const ta=document.createElement('textarea');
+      ta.value=text;
+      ta.style.cssText='position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none';
+      document.body.appendChild(ta);
+      ta.focus();ta.select();
+      ta.setSelectionRange(0,99999); // for mobile
+      const ok=document.execCommand('copy');
+      document.body.removeChild(ta);
+      if(ok) onSuccess(); else onFail();
+    }catch(e){ onFail(); }
+  }
+}
+
 function toggleSidebar(open){
   S.sidebarOpen=open!==undefined?open:!S.sidebarOpen;
   const sb=document.querySelector('.sidebar');
@@ -536,7 +560,6 @@ function render(){
           <span class="fn" data-fid="${f.id}">${esc(f.name)}</span>
           <div class="factions">
             <button class="faction-btn edit-f" data-fid="${f.id}" title="Rename">✎</button>
-            <button class="faction-btn del del-f" data-fid="${f.id}" title="Delete">×</button>
           </div>
           <span class="chev">›</span>
         </div>
@@ -546,8 +569,8 @@ function render(){
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#f5c842" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               <span class="tn">${esc(t.name)}</span>
               <div class="tactions" style="display:flex">
-                <button class="faction-btn edit-t" data-tid="${t.id}">✎</button>
-                <button class="faction-btn del del-t" data-tid="${t.id}">×</button>
+                <button class="faction-btn copy-t" data-tid="${t.id}" title="Copy content">⎘</button>
+                <button class="faction-btn edit-t" data-tid="${t.id}" title="Edit">✎</button>
               </div>
             </div>`).join('')}
           <div class="add-topic-btn" data-addt="${f.id}">+ Add Topic</div>
@@ -564,40 +587,11 @@ function render(){
       saveData();render();
     });
   });
-  // inline folder rename
+  // folder edit button → open modal
   sb.querySelectorAll('.edit-f').forEach(btn=>{
     btn.addEventListener('click',e=>{
       e.stopPropagation();
-      const fid=+btn.dataset.fid;
-      const f=S.folders.find(x=>x.id===fid);
-      const span=sb.querySelector(`.fn[data-fid="${fid}"]`);
-      const row=btn.closest('.folder-row');
-      // replace span with input
-      const inp=document.createElement('input');
-      inp.value=f.name;
-      inp.style.cssText='flex:1;background:#111;border:1px solid #f5c842;border-radius:4px;padding:2px 6px;color:#f0ece3;font-size:12px;font-family:inherit;outline:none;min-width:0';
-      span.replaceWith(inp);
-      inp.focus();inp.select();
-      // hide action buttons while editing
-      row.querySelector('.factions').style.display='none';
-      row.querySelector('.chev').style.display='none';
-      function commit(){
-        const val=inp.value.trim();
-        if(val)f.name=val;
-        saveData();render();
-      }
-      inp.addEventListener('blur',commit);
-      inp.addEventListener('keydown',e2=>{if(e2.key==='Enter')commit();if(e2.key==='Escape'){saveData();render();}});
-    });
-  });
-  // delete folder
-  sb.querySelectorAll('.del-f').forEach(btn=>{
-    btn.addEventListener('click',e=>{
-      e.stopPropagation();
-      const f=S.folders.find(x=>x.id===+btn.dataset.fid);
-      if(f.topics.length>0){S.modal='confirm';S.confirm={type:'info',label:'Folder not empty',desc:`"${f.name}" still has ${f.topics.length} topic(s). Remove all topics first.`};}
-      else{S.modal='confirm';S.confirm={type:'del-folder',id:f.id,label:`Delete "${f.name}"?`,desc:'This empty folder will be permanently deleted.'};}
-      render();
+      S.modal='edit-folder';S.editFolderTarget=+btn.dataset.fid;render();
     });
   });
   // select topic
@@ -608,19 +602,35 @@ function render(){
       saveNav();toggleSidebar(false);render();
     });
   });
-  // edit topic
-  sb.querySelectorAll('.edit-t').forEach(btn=>{
-    btn.addEventListener('click',e=>{e.stopPropagation();S.modal='edit-topic';S.editTopicTarget=+btn.dataset.tid;render();});
-  });
-  // delete topic
-  sb.querySelectorAll('.del-t').forEach(btn=>{
+  // copy topic content to system clipboard as formatted text
+  sb.querySelectorAll('.copy-t').forEach(btn=>{
     btn.addEventListener('click',e=>{
       e.stopPropagation();
       const t=allTopics().find(x=>x.id===+btn.dataset.tid);
-      if(t.pages.length>0){S.modal='confirm';S.confirm={type:'info',label:'Topic not empty',desc:`"${t.name}" has ${t.pages.length} page(s). Delete all pages first.`};}
-      else{S.modal='confirm';S.confirm={type:'del-topic',id:t.id,label:`Delete "${t.name}"?`,desc:'This topic will be permanently removed.'};}
-      render();
+      if(!t) return;
+      let text=`${t.name}\n${'─'.repeat(t.name.length)}\n\n`;
+      t.pages.forEach((p,i)=>{
+        text+=`Page ${i+1}: ${p.title}\n`;
+        if(p.listType==='quote'){
+          text+=`"${p.quoteText||''}"`;
+          if(p.quoteAuthor) text+=`\n— ${p.quoteAuthor}`;
+          text+='\n';
+        } else {
+          (p.bullets||[]).forEach((b,bi)=>{
+            const prefix=p.listType==='number'?`${bi+1}. `:'• ';
+            text+=`${prefix}${b}\n`;
+          });
+        }
+        text+='\n';
+      });
+      copyText(text.trim(),()=>{
+        showToast(`"${t.name}" copied!`);
+      },()=>showToast('Copy failed'));
     });
+  });
+  // edit topic
+  sb.querySelectorAll('.edit-t').forEach(btn=>{
+    btn.addEventListener('click',e=>{e.stopPropagation();S.modal='edit-topic';S.editTopicTarget=+btn.dataset.tid;render();});
   });
   // add topic
   sb.querySelectorAll('.add-topic-btn').forEach(btn=>{
@@ -685,10 +695,12 @@ function buildSlideCard(topic,idx){
 
   let bodyHTML='';
   if(listType==='quote'){
+    const qText=page.quoteText||'';
+    const qAuthor=page.quoteAuthor?`\n— ${page.quoteAuthor}`:'';
     bodyHTML=`<div class="slide-quote-wrap">
-      <div class="slide-quote">
+      <div class="slide-quote" data-qtext="${esc(qText+qAuthor)}">
         <div class="slide-quote-mark">"</div>
-        <div class="slide-quote-text sbullet-text">${esc(page.quoteText||'')}</div>
+        <div class="slide-quote-text sbullet-text">${esc(qText)}</div>
         ${page.quoteAuthor?`<div class="slide-quote-author">— ${esc(page.quoteAuthor)}</div>`:''}
       </div>
     </div>`;
@@ -708,10 +720,10 @@ function buildSlideCard(topic,idx){
   if(titleEl){
     let pressTimer=null;
     function startPress(){pressTimer=setTimeout(()=>{
-      navigator.clipboard.writeText(titleEl.dataset.titletext).then(()=>{
+      copyText(titleEl.dataset.titletext,()=>{
         titleEl.classList.add('copied');showToast('Copied!');
         setTimeout(()=>titleEl.classList.remove('copied'),600);
-      }).catch(()=>showToast('Copy failed'));
+      },()=>showToast('Copy failed'));
     },500);}
     function cancelPress(){clearTimeout(pressTimer);}
     titleEl.addEventListener('touchstart',startPress,{passive:true});
@@ -725,11 +737,11 @@ function buildSlideCard(topic,idx){
     function startPress(){
       pressTimer=setTimeout(()=>{
         const text=row.dataset.btext;
-        navigator.clipboard.writeText(text).then(()=>{
+        copyText(text,()=>{
           row.classList.add('copied');
           showToast('Copied!');
           setTimeout(()=>row.classList.remove('copied'),600);
-        }).catch(()=>showToast('Copy failed'));
+        },()=>showToast('Copy failed'));
       },500);
     }
     function cancelPress(){ clearTimeout(pressTimer); }
@@ -737,6 +749,20 @@ function buildSlideCard(topic,idx){
     row.addEventListener('touchend',   cancelPress, {passive:true});
     row.addEventListener('touchmove',  cancelPress, {passive:true});
   });
+
+  // Long-press to copy quote on mobile
+  const quoteEl=card.querySelector('.slide-quote[data-qtext]');
+  if(quoteEl){
+    let pressTimer=null;
+    quoteEl.addEventListener('touchstart',()=>{pressTimer=setTimeout(()=>{
+      copyText(quoteEl.dataset.qtext,()=>{
+        quoteEl.style.background='#f5c84233';showToast('Copied!');
+        setTimeout(()=>quoteEl.style.background='',600);
+      },()=>showToast('Copy failed'));
+    },500);},{passive:true});
+    quoteEl.addEventListener('touchend',()=>clearTimeout(pressTimer),{passive:true});
+    quoteEl.addEventListener('touchmove',()=>clearTimeout(pressTimer),{passive:true});
+  }
 
   return card;
 }
@@ -939,8 +965,17 @@ function renderModal(app){
   } else if(S.modal==='edit-folder'){
     const ef=S.folders.find(f=>f.id===S.editFolderTarget);
     const m=el('div','modal');
-    m.innerHTML=`<div class="modal-handle"></div><h3>Rename Folder</h3><div class="fg"><label>Folder Name</label><input id="fname" value="${ef?esc(ef.name):''}" autocomplete="off"></div><div class="macts"><button class="btn btn-ghost" id="mcancel">Cancel</button><button class="btn btn-gold" id="msave">Save</button></div>`;
+    m.innerHTML=`<div class="modal-handle"></div><h3>Edit Folder</h3><div class="fg"><label>Folder Name</label><input id="fname" value="${ef?esc(ef.name):''}" autocomplete="off"></div><div class="macts"><button class="btn btn-red" id="del-folder-btn">Delete Folder</button><button class="btn btn-ghost" id="mcancel">Cancel</button><button class="btn btn-gold" id="msave">Save</button></div>`;
     m.querySelector('#mcancel').addEventListener('click',()=>{S.modal=null;render();});
+    m.querySelector('#del-folder-btn').addEventListener('click',()=>{
+      if(!ef) return;
+      if(ef.topics.length>0){
+        S.modal='confirm';S.confirm={type:'info',label:'Folder not empty',desc:`"${ef.name}" still has ${ef.topics.length} topic(s). Remove all topics first.`};
+      } else {
+        S.modal='confirm';S.confirm={type:'del-folder',id:ef.id,label:`Delete "${ef.name}"?`,desc:'This empty folder will be permanently deleted.'};
+      }
+      render();
+    });
     m.querySelector('#msave').addEventListener('click',()=>{
       const name=m.querySelector('#fname').value.trim();if(!name){m.querySelector('#fname').focus();return;}
       if(ef)ef.name=name;S.modal=null;saveData();render();
@@ -950,8 +985,17 @@ function renderModal(app){
   } else if(S.modal==='new-topic'||S.modal==='edit-topic'){
     const editing=S.modal==='edit-topic',et=editing?allTopics().find(t=>t.id===S.editTopicTarget):null;
     const m=el('div','modal');
-    m.innerHTML=`<div class="modal-handle"></div><h3>${editing?'Edit Topic':'New Topic'}</h3><div class="fg"><label>Topic Name</label><input id="tname" value="${et?esc(et.name):''}" placeholder="e.g. Leadership Talk" autocomplete="off"></div><div class="macts"><button class="btn btn-ghost" id="mcancel">Cancel</button><button class="btn btn-gold" id="msave">${editing?'Save':'Add Topic'}</button></div>`;
+    m.innerHTML=`<div class="modal-handle"></div><h3>${editing?'Edit Topic':'New Topic'}</h3><div class="fg"><label>Topic Name</label><input id="tname" value="${et?esc(et.name):''}" placeholder="e.g. Leadership Talk" autocomplete="off"></div><div class="macts">${editing?`<button class="btn btn-red" id="del-topic-btn">Delete Topic</button>`:''}<button class="btn btn-ghost" id="mcancel">Cancel</button><button class="btn btn-gold" id="msave">${editing?'Save':'Add Topic'}</button></div>`;
     m.querySelector('#mcancel').addEventListener('click',()=>{S.modal=null;render();});
+    if(editing) m.querySelector('#del-topic-btn').addEventListener('click',()=>{
+      if(!et) return;
+      if(et.pages.length>0){
+        S.modal='confirm';S.confirm={type:'info',label:'Topic not empty',desc:`"${et.name}" has ${et.pages.length} page(s). Delete all pages first.`};
+      } else {
+        S.modal='confirm';S.confirm={type:'del-topic',id:et.id,label:`Delete "${et.name}"?`,desc:'This topic will be permanently removed.'};
+      }
+      render();
+    });
     m.querySelector('#msave').addEventListener('click',()=>{
       const name=m.querySelector('#tname').value.trim();if(!name){m.querySelector('#tname').focus();return;}
       if(editing){et.name=name;}else{const f=S.folders.find(x=>x.id===S.editFolderTarget);f.topics.push({id:Date.now(),name,icon:'',pages:[]});}
