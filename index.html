@@ -991,8 +991,17 @@ function renderModal(app){
 
   } else if(S.modal==='new-topic'||S.modal==='edit-topic'){
     const editing=S.modal==='edit-topic',et=editing?allTopics().find(t=>t.id===S.editTopicTarget):null;
+    const currentFolder=editing?getFolderOf(et.id):S.folders.find(x=>x.id===S.editFolderTarget);
     const m=el('div','modal');
-    m.innerHTML=`<div class="modal-handle"></div><h3>${editing?'Edit Topic':'New Topic'}</h3><div class="fg"><label>Topic Name</label><input id="tname" value="${et?esc(et.name):''}" placeholder="e.g. Leadership Talk" autocomplete="off"></div><div class="macts">${editing?`<button class="btn btn-red" id="del-topic-btn">Delete Topic</button>`:''}<button class="btn btn-ghost" id="mcancel">Cancel</button><button class="btn btn-gold" id="msave">${editing?'Save':'Add Topic'}</button></div>`;
+    const sortedFolders=[...S.folders].sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'}));
+    m.innerHTML=`<div class="modal-handle"></div><h3>${editing?'Edit Topic':'New Topic'}</h3>
+      <div class="fg"><label>Topic Name</label><input id="tname" value="${et?esc(et.name):''}" placeholder="e.g. Leadership Talk" autocomplete="off"></div>
+      <div class="fg"><label>Folder</label>
+        <select id="tfolder" style="width:100%;background:var(--input-bg);border:1px solid var(--b);border-radius:8px;padding:12px 13px;color:var(--t);font-size:15px;font-family:'Open Sans',sans-serif;outline:none;-webkit-appearance:none;min-height:44px">
+          ${sortedFolders.map(f=>`<option value="${f.id}" ${currentFolder&&f.id===currentFolder.id?'selected':''}>${esc(f.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="macts">${editing?`<button class="btn btn-red" id="del-topic-btn">Delete Topic</button>`:''}<button class="btn btn-ghost" id="mcancel">Cancel</button><button class="btn btn-gold" id="msave">${editing?'Save':'Add Topic'}</button></div>`;
     m.querySelector('#mcancel').addEventListener('click',()=>{S.modal=null;render();});
     if(editing) m.querySelector('#del-topic-btn').addEventListener('click',()=>{
       if(!et) return;
@@ -1005,7 +1014,19 @@ function renderModal(app){
     });
     m.querySelector('#msave').addEventListener('click',()=>{
       const name=m.querySelector('#tname').value.trim();if(!name){m.querySelector('#tname').focus();return;}
-      if(editing){et.name=name;}else{const f=S.folders.find(x=>x.id===S.editFolderTarget);f.topics.push({id:Date.now(),name,icon:'',pages:[]});}
+      const targetFolderId=+m.querySelector('#tfolder').value;
+      if(editing){
+        et.name=name;
+        // move to different folder if changed
+        if(currentFolder&&currentFolder.id!==targetFolderId){
+          currentFolder.topics=currentFolder.topics.filter(t=>t.id!==et.id);
+          const targetFolder=S.folders.find(f=>f.id===targetFolderId);
+          if(targetFolder){ targetFolder.topics.push(et); targetFolder.open=true; }
+        }
+      } else {
+        const f=S.folders.find(x=>x.id===targetFolderId);
+        if(f) f.topics.push({id:Date.now(),name,icon:'',pages:[]});
+      }
       S.modal=null;saveData();render();
     });
     ov.appendChild(m);
