@@ -558,7 +558,7 @@ function render(){
     </div>
     <div class="sb-scroll">
       <div class="sb-section">Folders</div>
-      ${S.folders.map(f=>`
+      ${[...S.folders].sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'})).map(f=>`
         <div class="folder-row ${f.open?'open':''}" data-fid="${f.id}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="#f5c842" stroke="#f5c842" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
           <span class="fn" data-fid="${f.id}">${esc(f.name)}</span>
