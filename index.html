@@ -677,11 +677,26 @@ function renderModal(app){
           pushUndo();
           var text=(e.clipboardData||window.clipboardData).getData('text');
           var lines=text.split(/\r?\n/).map(function(l){return l.trim();}).filter(function(l){return l;});
-          if(!lines.length)return;
+          if(!lines.length) return;
           var i=+ta.dataset.i;
-          bullets.splice.apply(bullets,[i,1].concat(lines));
-          if(bullets.length>7)bullets.length=7;
-          upd(i+lines.length-1);
+          var pos=ta.selectionStart;
+          var end=ta.selectionEnd;
+          var before=ta.value.slice(0,pos);
+          var after=ta.value.slice(end);
+          if(lines.length===1){
+            // Single line — just insert at cursor
+            bullets[i]=before+lines[0]+after;
+            upd(i);
+          } else {
+            // Multiple lines — first line merges with text before cursor,
+            // last line merges with text after cursor, middle lines are new bullets
+            var newBullets=[before+lines[0]];
+            for(var li=1;li<lines.length-1;li++) newBullets.push(lines[li]);
+            newBullets.push(lines[lines.length-1]+after);
+            bullets.splice.apply(bullets,[i,1].concat(newBullets));
+            if(bullets.length>7) bullets.length=7;
+            upd(i+newBullets.length-1);
+          }
           pushUndo();
         });
       });
