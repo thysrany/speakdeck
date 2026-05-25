@@ -602,7 +602,13 @@ function renderTOC(content,topic){
 
 function renderModal(app){
   var ov=el('div','moverlay');
-  ov.addEventListener('click',function(e){if(e.target===ov){S.modal=null;S.insertAfter=null;render();}});
+  ov.addEventListener('click',function(e){
+    if(e.target===ov){
+      // Don't close the page modal by clicking outside — must use Cancel
+      if(S.modal==='page') return;
+      S.modal=null;S.insertAfter=null;render();
+    }
+  });
 
   if(S.modal==='page'){
     var topic=getTopic(),editing=S.editPageIdx!==null,ex=editing?topic.pages[S.editPageIdx]:null;
