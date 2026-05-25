@@ -196,6 +196,14 @@ tr.dragging{opacity:.35}
   .slide-card{padding:20px 18px}
 }
 @media(min-width:641px){.menu-btn{display:none}}
+/* SIGN-IN SCREEN */
+.signin-screen{position:fixed;inset:0;background:#0f0f0f;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:24px;padding:40px}
+body.light .signin-screen{background:#f4f4f4}
+.signin-logo{font-size:52px;font-weight:900;color:var(--gold)}
+.signin-tagline{font-size:15px;color:var(--t3);text-align:center;line-height:1.6;max-width:280px}
+.signin-google-btn{display:flex;align-items:center;gap:10px;padding:14px 28px;background:var(--gold);color:#000;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit}
+.signin-google-btn:active{background:var(--gold2)}
+.signin-note{font-size:12px;color:var(--t3);text-align:center;max-width:260px;line-height:1.5}
 </style>
 </head>
 <body>
@@ -377,6 +385,17 @@ function render(){
   var app=document.getElementById('app');
   if(!app)return;
   app.innerHTML='';
+
+  // Show sign-in screen if not logged in
+  if(!S.user){
+    var screen=el('div','signin-screen');
+    screen.innerHTML='<div class="signin-logo">SpeakDeck</div><div class="signin-tagline">Your speaker notes, organized and synced across all your devices.</div><button class="signin-google-btn" id="signin-main-btn"><svg width="18" height="18" viewBox="0 0 24 24"><path fill="#000" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#000" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#000" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#000" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg> Sign in with Google</button><div class="signin-note">Your notes are private and only accessible with your Google account.</div>';
+    screen.querySelector('#signin-main-btn').addEventListener('click',function(){
+      if(window._fb) window._fb.signIn();
+    });
+    app.appendChild(screen);
+    return;
+  }
 
   // SIDEBAR
   var isLight=document.body.classList.contains('light');
@@ -729,10 +748,13 @@ function renderModal(app){
 }
 
 document.addEventListener('keydown',function(e){
+  // Always let Ctrl/Cmd shortcuts through (copy, paste, undo etc)
+  if(e.ctrlKey||e.metaKey) return;
+  // Always let keys work in input fields
   var tag=document.activeElement&&document.activeElement.tagName;
-  if(tag==='INPUT'||tag==='TEXTAREA'||document.activeElement.isContentEditable)return;
-  if(e.ctrlKey||e.metaKey)return;
-  if(S.modal)return;
+  if(tag==='INPUT'||tag==='TEXTAREA'||document.activeElement.isContentEditable) return;
+  // Block slide navigation when modal is open
+  if(S.modal) return;
   var t=getTopic();
   if(S.view==='slide'){
     if(e.key==='ArrowRight'||e.key==='ArrowDown'){if(t&&S.page<t.pages.length-1){var st=document.querySelector('#slide-stage');if(st){var old=st.querySelector('.slide-card');S.page++;saveNav();animateSlide(st,old,'next',function(){return buildSlideCard(t,S.page);});var ctr=document.querySelector('#page-ctr');if(ctr)ctr.textContent=(S.page+1)+'/'+t.pages.length;document.querySelector('#sprev').disabled=S.page===0;document.querySelector('#snext').disabled=S.page===t.pages.length-1;}}}
@@ -750,6 +772,7 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
   var API_KEY  = 'AIzaSyAnDJ8sBzs8kY9xwN9yj545H7FJtbVHjCA';
   var CLIENT_ID= '55277159527-53fbmbof24n7rhs44h6qtp58atcgqe6i.apps.googleusercontent.com';
   var FS_URL   = 'https://firestore.googleapis.com/v1/projects/'+PROJECT+'/databases/(default)/documents/users/';
+  var _lastUpdatedAt = 0;
 
   // ── Restore saved session ──
   function getSavedUser(){
@@ -891,34 +914,86 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
     return u.idToken;
   }
 
-  // ── Live sync polling ──
-  var _lastUpdatedAt = 0;
-  var _pollInterval = null;
+  // ── Live sync — Firebase SDK real-time listener ──
+  var _unsubscribe = null;
 
   function startPolling(uid){
     stopPolling();
-    _pollInterval = setInterval(function(){
+    // Load Firebase SDK for real-time sync (safe now — app already rendered)
+    if(typeof firebase !== 'undefined' && firebase.firestore){
+      subscribeFirestore(uid); return;
+    }
+    var scriptsToLoad = ['firebase-app-compat','firebase-firestore-compat'];
+    var loaded = 0;
+    scriptsToLoad.forEach(function(name){
+      var s = document.createElement('script');
+      s.src = 'https://www.gstatic.com/firebasejs/10.12.0/'+name+'.js';
+      s.onload = function(){
+        loaded++;
+        if(loaded === scriptsToLoad.length){
+          try{
+            var cfg={apiKey:"AIzaSyAnDJ8sBzs8kY9xwN9yj545H7FJtbVHjCA",authDomain:"speakdeck-bb76b.firebaseapp.com",projectId:"speakdeck-bb76b",storageBucket:"speakdeck-bb76b.firebasestorage.app",messagingSenderId:"55277159527",appId:"1:55277159527:web:90abfdf1c812a7707680c2"};
+            if(!firebase.apps.length) firebase.initializeApp(cfg);
+            subscribeFirestore(uid);
+          }catch(e){ fallbackPolling(uid); }
+        }
+      };
+      s.onerror = function(){ fallbackPolling(uid); };
+      document.body.appendChild(s);
+    });
+  }
+
+  function subscribeFirestore(uid){
+    var db = firebase.firestore();
+    _unsubscribe = db.collection('users').doc(uid).onSnapshot(function(doc){
+      if(!doc.exists) return;
+      var data = doc.data();
+      if(!data||!data.folders) return;
+      var cloudTime = data.updatedAt||0;
+      // Only update if cloud is newer than our last local save
+      if(cloudTime > _lastUpdatedAt && data.folders.length){
+        _lastUpdatedAt = cloudTime;
+        S.folders = data.folders;
+        if(data.selectedTopicId) S.selectedTopicId = data.selectedTopicId;
+        saveNav(); render();
+        showToast('Synced ✓');
+      }
+    }, function(err){ fallbackPolling(uid); });
+  }
+
+  function fallbackPolling(uid){
+    // REST polling every 15s as fallback
+    _unsubscribe = setInterval(function(){
       var token = getToken();
       if(!token){ stopPolling(); return; }
       fsGet(uid, token).then(function(doc){
         if(!doc||!doc.fields) return;
         var data = fromFields(doc.fields);
-        // Only update if cloud is newer than what we last saved
-        var cloudTime = data.updatedAt || 0;
+        var cloudTime = data.updatedAt||0;
         if(cloudTime > _lastUpdatedAt && data.folders && data.folders.length){
           _lastUpdatedAt = cloudTime;
           S.folders = data.folders;
           if(data.selectedTopicId) S.selectedTopicId = data.selectedTopicId;
-          saveNav();
-          render();
-          showToast('Synced ✓');
+          saveNav(); render(); showToast('Synced ✓');
         }
       }).catch(function(){});
-    }, 15000); // check every 15 seconds
+    }, 15000);
   }
 
   function stopPolling(){
-    if(_pollInterval){ clearInterval(_pollInterval); _pollInterval=null; }
+    if(_unsubscribe){
+      if(typeof _unsubscribe === 'function') _unsubscribe(); // Firestore unsubscribe
+      else clearInterval(_unsubscribe); // REST interval
+      _unsubscribe = null;
+    }
+  }
+
+  function restSave(uid, data){
+    var token = getToken();
+    if(!token) return;
+    fsSave(uid, token, data)
+      .then(function(r){ if(r.ok) showToast('Synced ✓'); })
+      .catch(function(){ showToast('Sync failed'); });
   }
 
   // ── Expose API ──
@@ -926,14 +1001,19 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
     signIn:  doSignIn,
     signOut: doSignOut,
     save: function(uid, data){
-      var token=getToken();
-      if(!token) return;
+      _lastUpdatedAt = data.updatedAt || Date.now(); // mark our own save
       clearTimeout(window._fbSaveTimer);
-      _lastUpdatedAt = data.updatedAt || Date.now(); // mark our own save time
       window._fbSaveTimer=setTimeout(function(){
-        fsSave(uid, token, data)
-          .then(function(r){ if(r.ok) showToast('Synced ✓'); })
-          .catch(function(){ showToast('Sync failed'); });
+        // Use Firestore SDK if loaded (faster), fallback to REST
+        if(typeof firebase !== 'undefined' && firebase.firestore){
+          try{
+            firebase.firestore().collection('users').doc(uid).set(data)
+              .then(function(){ showToast('Synced ✓'); })
+              .catch(function(){ restSave(uid, data); });
+            return;
+          }catch(e){}
+        }
+        restSave(uid, data);
       }, 800);
     },
     subscribe: function(uid){ startPolling(uid); },
