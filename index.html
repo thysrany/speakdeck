@@ -894,6 +894,9 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
   }
 
   // ── Google Identity Services sign-in ──
+  var _tokenClient = null;
+  var _refreshTimer = null;
+
   function loadGIS(cb){
     if(window.google&&google.accounts){ cb(); return; }
     var s=document.createElement('script');
@@ -903,57 +906,62 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
     document.head.appendChild(s);
   }
 
+  function scheduleTokenRefresh(expiresIn){
+    clearTimeout(_refreshTimer);
+    var delay=Math.max(0,(expiresIn-300)*1000); // refresh 5 min before expiry
+    _refreshTimer=setTimeout(silentRefresh, delay);
+  }
+
+  function silentRefresh(){
+    if(!_tokenClient||!window._fbUser) return;
+    _tokenClient.requestAccessToken({prompt:''});
+  }
+
+  function applyToken(resp, userInfo){
+    var token=resp.access_token;
+    var expiresIn=resp.expires_in||3600;
+    var updated={
+      uid: userInfo.uid, email: userInfo.email,
+      displayName: userInfo.displayName, photoURL: userInfo.photoURL,
+      idToken: token, tokenExpiry: Date.now()+expiresIn*1000
+    };
+    window._fbUser=updated; S.user=updated;
+    saveUser(updated);
+    scheduleTokenRefresh(expiresIn);
+    return token;
+  }
+
   function doSignIn(){
     loadGIS(function(){
-      google.accounts.oauth2.initTokenClient({
+      _tokenClient=google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: 'profile email https://www.googleapis.com/auth/datastore',
         callback: function(resp){
           if(resp.error){ showToast('Sign-in failed'); return; }
-          var token = resp.access_token;
-          // Get user info
+          var token=resp.access_token;
           fetch('https://www.googleapis.com/oauth2/v3/userinfo',{
             headers:{'Authorization':'Bearer '+token}
           }).then(function(r){ return r.json(); })
           .then(function(info){
-            var user={
-              uid: info.sub,
-              email: info.email,
-              displayName: info.name,
-              photoURL: info.picture,
-              idToken: token,
-              tokenExpiry: Date.now() + (resp.expires_in||3600)*1000
-            };
-            window._fbUser = user;
-            S.user = user;
-            saveUser(user);
+            var userInfo={uid:info.sub,email:info.email,displayName:info.name,photoURL:info.picture};
+            applyToken(resp, userInfo);
             showToast('Signed in!');
-            // Load cloud data — if empty, upload local data (first sign-in)
-            fsGet(user.uid, token).then(function(doc){
+            fsGet(userInfo.uid, token).then(function(doc){
               if(doc&&doc.fields){
-                // Cloud has data — load it
                 var data=fromFields(doc.fields);
                 if(data.folders&&data.folders.length){ S.folders=data.folders; }
                 if(data.selectedTopicId){ S.selectedTopicId=data.selectedTopicId; }
-                saveNav();
-                showToast('Notes loaded from cloud ✓');
+                saveNav(); showToast('Notes loaded from cloud ✓');
               } else {
-                // Cloud is empty — upload local data
-                fsSave(user.uid, token, {
-                  folders: S.folders,
-                  selectedTopicId: S.selectedTopicId,
-                  updatedAt: Date.now()
-                }).then(function(){ showToast('Notes uploaded to cloud ✓'); });
+                fsSave(userInfo.uid, token, {folders:S.folders,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()})
+                  .then(function(){ showToast('Notes uploaded to cloud ✓'); });
               }
-              render();
-              startPolling(user.uid);
-            }).catch(function(){
-              // Network error — keep local data
-              render();
-            });
+              render(); startPolling(userInfo.uid);
+            }).catch(function(){ render(); });
           }).catch(function(){ showToast('Could not get user info'); });
         }
-      }).requestAccessToken();
+      });
+      _tokenClient.requestAccessToken({prompt:'select_account'});
     });
   }
 
@@ -1089,6 +1097,19 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
     if(!expired && token){
       window._fbUser = saved;
       S.user = saved;
+      // Schedule token refresh based on remaining time
+      var remaining = saved.tokenExpiry ? Math.floor((saved.tokenExpiry - Date.now()) / 1000) : 3600;
+      loadGIS(function(){
+        _tokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: CLIENT_ID,
+          scope: 'profile email https://www.googleapis.com/auth/datastore',
+          callback: function(resp){
+            if(resp.error) return;
+            applyToken(resp, {uid:saved.uid,email:saved.email,displayName:saved.displayName,photoURL:saved.photoURL});
+          }
+        });
+        scheduleTokenRefresh(remaining);
+      });
       // Load latest cloud data silently
       fsGet(saved.uid, token).then(function(doc){
         if(doc&&doc.fields){
@@ -1096,13 +1117,11 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
           if(data.folders&&data.folders.length){
             S.folders=data.folders;
           } else {
-            // Cloud empty — upload local data
             fsSave(saved.uid, token, {folders:S.folders,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()});
           }
           if(data.selectedTopicId){ S.selectedTopicId=data.selectedTopicId; }
           saveNav();
         } else {
-          // No doc yet — upload local data
           fsSave(saved.uid, token, {folders:S.folders,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()});
         }
         render();
