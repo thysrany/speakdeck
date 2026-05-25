@@ -617,16 +617,45 @@ function renderModal(app){
     var m=el('div','modal');
     m.innerHTML='<div class="modal-handle"></div><h3>'+(editing?'Edit Page':'Add New Page')+'</h3><div class="fg"><label>Page Title</label><input id="ptitle" value="'+(ex?esc(ex.title):'')+'" placeholder="e.g. The Key Insight" autocomplete="off"></div><div class="fg"><label>Page Style</label><div class="list-type-toggle"><button class="ltt-btn'+(listType==='bullet'?' active':'')+'" data-lt="bullet">● Bullets</button><button class="ltt-btn'+(listType==='number'?' active':'')+'" data-lt="number">1. Numbers</button><button class="ltt-btn'+(listType==='quote'?' active':'')+'" data-lt="quote">" Quote</button></div></div><div id="bullets-section" style="display:'+(listType==='quote'?'none':'block')+'"><div class="fg"><label>Points (max 7)</label><div style="font-size:10px;color:var(--t3);margin-bottom:8px">Enter = new point · ↵ line button = new line · Paste splits lines</div><div class="blist" id="blist"></div><button class="badd" id="badd">+ Add Point</button></div></div><div id="quote-section" style="display:'+(listType==='quote'?'block':'none')+'"><div class="fg"><label>Quote Text</label><input id="quote-text" value="'+(ex&&ex.quoteText?esc(ex.quoteText):'')+'" placeholder="Enter the quote here..." autocomplete="off"></div><div class="fg"><label>Author (optional)</label><input id="quote-author" value="'+(ex&&ex.quoteAuthor?esc(ex.quoteAuthor):'')+'" placeholder="— Author name" autocomplete="off"></div></div><div class="macts">'+(editing?'<button class="btn btn-red" id="del-pg-btn">Delete</button>':'')+'<button class="btn btn-ghost" id="mcancel">Cancel</button><button class="btn btn-gold" id="msave">'+(editing?'Save':'Add Page')+'</button></div>';
 
+    var undoStack = [JSON.stringify(bullets)];
+    var undoIdx = 0;
+
+    function pushUndo(){
+      var snap = JSON.stringify(bullets);
+      if(snap === undoStack[undoIdx]) return; // no change
+      undoStack = undoStack.slice(0, undoIdx+1);
+      undoStack.push(snap);
+      undoIdx = undoStack.length-1;
+    }
+
     function upd(fi){
       var bl=m.querySelector('#blist');
       bl.innerHTML=bullets.map(function(_,i){return '<div class="brow"><textarea class="bi" data-i="'+i+'" rows="1" placeholder="Point '+(i+1)+'...">'+esc(bullets[i]||'')+'</textarea><button class="bnewline" data-nl="'+i+'">↵<br>line</button><button class="bdel" data-d="'+i+'">×</button></div>';}).join('');
       bl.querySelectorAll('.bi').forEach(function(ta){
-        var resize=function(){ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';};
-        ta.addEventListener('input',function(){bullets[+ta.dataset.i]=ta.value;resize();});
-        setTimeout(function(){resize();},0);
         ta.addEventListener('keydown',function(e){
+          // Ctrl+Z — undo bullet changes
+          if((e.ctrlKey||e.metaKey)&&e.key==='z'){
+            e.preventDefault();
+            if(undoIdx>0){
+              undoIdx--;
+              bullets=JSON.parse(undoStack[undoIdx]);
+              upd();
+            }
+            return;
+          }
+          // Ctrl+Shift+Z / Ctrl+Y — redo
+          if((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.shiftKey&&e.key==='z'))){
+            e.preventDefault();
+            if(undoIdx<undoStack.length-1){
+              undoIdx++;
+              bullets=JSON.parse(undoStack[undoIdx]);
+              upd();
+            }
+            return;
+          }
           if(e.key==='Enter'){
             e.preventDefault();
+            pushUndo();
             var i=+ta.dataset.i;
             if(bullets.length<7){
               var pos=ta.selectionStart;
@@ -635,8 +664,17 @@ function renderModal(app){
             }
           }
         });
+        ta.addEventListener('input',function(){
+          bullets[+ta.dataset.i]=ta.value;
+          // Push undo after short pause (debounced)
+          clearTimeout(ta._undoTimer);
+          ta._undoTimer=setTimeout(pushUndo, 500);
+          var resize=function(){ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';};
+          resize();
+        });
         ta.addEventListener('paste',function(e){
           e.preventDefault();
+          pushUndo();
           var text=(e.clipboardData||window.clipboardData).getData('text');
           var lines=text.split(/\r?\n/).map(function(l){return l.trim();}).filter(function(l){return l;});
           if(!lines.length)return;
@@ -644,6 +682,7 @@ function renderModal(app){
           bullets.splice.apply(bullets,[i,1].concat(lines));
           if(bullets.length>7)bullets.length=7;
           upd(i+lines.length-1);
+          pushUndo();
         });
       });
       bl.querySelectorAll('.bnewline').forEach(function(btn){
@@ -651,12 +690,13 @@ function renderModal(app){
           var i=+btn.dataset.nl;
           var ta=bl.querySelectorAll('.bi')[i];
           var pos=ta.selectionStart;
+          pushUndo();
           bullets[i]=ta.value.slice(0,pos)+'\n'+ta.value.slice(pos);
           upd(i);
           setTimeout(function(){var t2=m.querySelector('#blist').querySelectorAll('.bi')[i];if(t2){t2.focus();t2.setSelectionRange(pos+1,pos+1);}},10);
         });
       });
-      bl.querySelectorAll('.bdel').forEach(function(btn){btn.addEventListener('click',function(){if(bullets.length>1)bullets.splice(+btn.dataset.d,1);else bullets[0]='';upd();});});
+      bl.querySelectorAll('.bdel').forEach(function(btn){btn.addEventListener('click',function(){pushUndo();if(bullets.length>1)bullets.splice(+btn.dataset.d,1);else bullets[0]='';upd();});});
       if(fi>=0){var ts=bl.querySelectorAll('.bi');var tgt=ts[Math.min(fi,ts.length-1)];if(tgt)setTimeout(function(){tgt.focus();tgt.setSelectionRange(0,0);},10);}
     }
     upd();
