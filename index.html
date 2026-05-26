@@ -275,7 +275,14 @@ function loadData(){
 function saveData(){
   try{localStorage.setItem(SAVE_KEY,JSON.stringify({folders:S.folders,selectedTopicId:S.selectedTopicId,view:S.view,page:S.page}));}catch(e){}
   if(window._fb&&window._fbUser&&window._fbUser.uid){
-    window._fb.save(window._fbUser.uid,{folders:S.folders,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()});
+    // Strip 'open' state before sending to cloud — it's a local UI preference
+    var foldersForCloud=S.folders.map(function(f){
+      var fc=Object.assign({},f);
+      delete fc.open;
+      fc.topics=f.topics.map(function(t){ return Object.assign({},t); });
+      return fc;
+    });
+    window._fb.save(window._fbUser.uid,{folders:foldersForCloud,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()});
   }
 }
 function saveNav(){
@@ -578,7 +585,8 @@ function renderSlideView(content,topic){
 
 function renderTOC(content,topic){
   if(!topic.pages.length){
-    content.innerHTML='<div class="toc-hdr"><h3>'+esc(topic.name)+'</h3><p>No pages yet</p></div><div class="empty"><div class="ei">📄</div><p>Tap "+ Add Page" to start!</p></div>';
+    content.innerHTML='<div class="toc-hdr"><h3>'+esc(topic.name)+'</h3><p>No pages yet</p></div><div class="empty" id="empty-add" style="cursor:pointer"><div class="ei">📄</div><p style="color:var(--gold);font-weight:700;font-size:15px">Tap to add a page</p></div>';
+    content.querySelector('#empty-add').addEventListener('click',function(){S.modal='page';S.editPageIdx=null;S.insertAfter=null;render();});
     return;
   }
   var d=el('div');
@@ -949,11 +957,18 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
             fsGet(userInfo.uid, token).then(function(doc){
               if(doc&&doc.fields){
                 var data=fromFields(doc.fields);
-                if(data.folders&&data.folders.length){ S.folders=data.folders; }
+                if(data.folders&&data.folders.length){ (function(){
+                  // Preserve local open state when loading from cloud
+                  var localOpen={};
+                  S.folders.forEach(function(f){ localOpen[f.id]=f.open; });
+                  S.folders=data.folders.map(function(f){
+                    return Object.assign({},f,{open:localOpen[f.id]||false});
+                  });
+                })(); }
                 if(data.selectedTopicId){ S.selectedTopicId=data.selectedTopicId; }
                 saveNav(); showToast('Notes loaded from cloud ✓');
               } else {
-                fsSave(userInfo.uid, token, {folders:S.folders,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()})
+                fsSave(userInfo.uid, token, {folders:S.folders.map(function(f){var fc=Object.assign({},f);delete fc.open;fc.topics=f.topics.map(function(t){return Object.assign({},t);});return fc;}),selectedTopicId:S.selectedTopicId,updatedAt:Date.now()})
                   .then(function(){ showToast('Notes uploaded to cloud ✓'); });
               }
               render(); startPolling(userInfo.uid);
@@ -1115,14 +1130,21 @@ document.getElementById('sb-overlay').addEventListener('click',function(){toggle
         if(doc&&doc.fields){
           var data=fromFields(doc.fields);
           if(data.folders&&data.folders.length){
-            S.folders=data.folders;
+            (function(){
+                  // Preserve local open state when loading from cloud
+                  var localOpen={};
+                  S.folders.forEach(function(f){ localOpen[f.id]=f.open; });
+                  S.folders=data.folders.map(function(f){
+                    return Object.assign({},f,{open:localOpen[f.id]||false});
+                  });
+                })();
           } else {
-            fsSave(saved.uid, token, {folders:S.folders,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()});
+            fsSave(saved.uid, token, {folders:S.folders.map(function(f){var fc=Object.assign({},f);delete fc.open;fc.topics=f.topics.map(function(t){return Object.assign({},t);});return fc;}),selectedTopicId:S.selectedTopicId,updatedAt:Date.now()});
           }
           if(data.selectedTopicId){ S.selectedTopicId=data.selectedTopicId; }
           saveNav();
         } else {
-          fsSave(saved.uid, token, {folders:S.folders,selectedTopicId:S.selectedTopicId,updatedAt:Date.now()});
+          fsSave(saved.uid, token, {folders:S.folders.map(function(f){var fc=Object.assign({},f);delete fc.open;fc.topics=f.topics.map(function(t){return Object.assign({},t);});return fc;}),selectedTopicId:S.selectedTopicId,updatedAt:Date.now()});
         }
         render();
         startPolling(saved.uid);
