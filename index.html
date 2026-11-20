@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- SpeakDeck v4 - Build 20261120 -->
+<!-- SpeakDeck v4.1 - Build 20261120 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -8,7 +8,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>SpeakDeck 4.0</title>
+<title>SpeakDeck 4.1</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;font-family:Arial,Helvetica,sans-serif}
@@ -207,6 +207,19 @@ body.light .signin-screen{background:#f4f4f4}
 .acct-name{font-size:16px;font-weight:700;color:var(--t)}
 .acct-email{font-size:13px;color:var(--t3);margin-top:2px}
 @media(max-width:640px){.slide-stitle{font-size:24px}.sbullet{font-size:18px}.slide-card{padding:20px 18px}}
+/* TAG CHIPS */
+.chips{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:-4px 0 14px;padding-bottom:2px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex-shrink:0;padding:8px 15px;border-radius:18px;border:1px solid var(--b);background:var(--card-bg);color:var(--t2);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap}
+.chip.on{background:var(--gold);border-color:var(--gold);color:#000}
+.tag-box{display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--input-bg);border:1px solid var(--b);border-radius:8px;padding:7px 9px;min-height:46px;cursor:text}
+.tag-box:focus-within{border-color:var(--gold)}
+.tag-pill{display:inline-flex;align-items:center;gap:4px;background:#f5c84222;border:1px solid #f5c84266;color:var(--t);border-radius:14px;padding:4px 4px 4px 11px;font-size:13px;font-weight:600}
+.tag-pill button{width:22px;height:22px;border-radius:50%;border:none;background:transparent;color:var(--t3);font-size:15px;cursor:pointer;padding:0;line-height:1}
+.fg .tag-box input{flex:1;min-width:110px;width:auto;border:none;background:transparent;padding:4px 2px;min-height:30px}
+.tag-sug{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag-opt{padding:7px 12px;border-radius:14px;border:1px solid var(--b);background:transparent;color:var(--t2);font-size:13px;cursor:pointer;font-family:inherit}
+.tag-opt.tag-new{border-style:dashed;color:var(--gold);border-color:var(--gold)}
 </style>
 </head>
 <body>
@@ -266,6 +279,7 @@ function loadData(){
                 quoteAuthor:p.quoteAuthor||''
               };
             });
+            t.tags=Array.isArray(t.tags)?t.tags.filter(function(g){return typeof g==='string'&&g;}):[];
           });
         });
       }
@@ -303,7 +317,7 @@ function showToast(msg){
 var S=loadData();
 S.modal=null;S.editPageIdx=null;S.confirm=null;
 S.editFolderTarget=null;S.editTopicTarget=null;
-S.insertAfter=null;S.topbarHidden=false;S.search='';
+S.insertAfter=null;S.topbarHidden=false;S.search='';S.homeTag='';S.folderSearch='';S.folderTag='';
 if(['home','folder','toc','slide'].indexOf(S.view)<0)S.view='home';
 S.user=null;
 
@@ -369,10 +383,12 @@ window.addEventListener('popstate',function(){
   _navDepth=Math.max(0,_navDepth-1);
   goUp();
 });
-function openFolder(fid){S.folderId=fid;navTo('folder');}
+function openFolder(fid){if(S.folderId!==fid){S.folderSearch='';S.folderTag='';}S.folderId=fid;navTo('folder');}
 function openTopic(tid){
   S.selectedTopicId=tid;
-  var f=getFolderOf(tid);S.folderId=f?f.id:null;
+  var f=getFolderOf(tid);
+  if(f&&S.folderId!==f.id){S.folderSearch='';S.folderTag='';}
+  S.folderId=f?f.id:null;
   S.page=0;navTo('toc');
 }
 function getFolder(fid){return S.folders.filter(function(f){return f.id===fid;})[0];}
@@ -487,6 +503,68 @@ function render(){
   if(S.modal)renderModal(app);
 }
 
+// ── SEARCH + TAGS ──
+function topicTags(t){return Array.isArray(t.tags)?t.tags:[];}
+function tagSort(a,b){return a.localeCompare(b,undefined,{numeric:true,sensitivity:'base'});}
+function tagsIn(topics){
+  var seen={},out=[];
+  topics.forEach(function(t){topicTags(t).forEach(function(g){var k=g.toLowerCase();if(!seen[k]){seen[k]=1;out.push(g);}});});
+  return out.sort(tagSort);
+}
+function allTagList(){return tagsIn(allTopics());}
+function hasTag(t,tag){var k=tag.toLowerCase();return topicTags(t).some(function(g){return g.toLowerCase()===k;});}
+function topicMatches(t,q){
+  if(!q)return true;
+  function has(s){return String(s||'').toLowerCase().indexOf(q)>=0;}
+  if(has(t.name))return true;
+  return t.pages.some(function(p){
+    if(has(p.title)||has(p.quoteText)||has(p.quoteAuthor))return true;
+    return (p.bullets||[]).some(has);
+  });
+}
+function chipsHTML(tags,active){
+  if(!tags.length)return '';
+  return '<div class="chips">'+tags.map(function(g){
+    var on=active&&g.toLowerCase()===active.toLowerCase();
+    return '<button class="chip'+(on?' on':'')+'" data-tag="'+esc(g)+'">'+esc(g)+'</button>';
+  }).join('')+'</div>';
+}
+function searchBoxHTML(id,val,ph){
+  return '<div class="search-box">'+searchSVG()+'<input id="'+id+'" type="text" placeholder="'+ph+'" value="'+esc(val||'')+'" autocomplete="off" autocorrect="off" spellcheck="false"><button class="search-clear" id="'+id+'-clear" style="display:'+(val?'flex':'none')+'" aria-label="Clear">×</button></div>';
+}
+// Wires a search box + chip row; key = state field for text, tagKey = state field for tag
+function wireFilters(wrap,inputId,key,tagKey,refill){
+  var inp=wrap.querySelector('#'+inputId);
+  var clr=wrap.querySelector('#'+inputId+'-clear');
+  inp.addEventListener('input',function(){S[key]=inp.value;clr.style.display=S[key]?'flex':'none';refill();});
+  clr.addEventListener('click',function(){S[key]='';inp.value='';clr.style.display='none';refill();inp.focus();});
+  wrap.querySelectorAll('.chip').forEach(function(c){
+    c.addEventListener('click',function(){
+      var g=c.dataset.tag;
+      S[tagKey]=(S[tagKey]&&S[tagKey].toLowerCase()===g.toLowerCase())?'':g;
+      wrap.querySelectorAll('.chip').forEach(function(x){x.classList.toggle('on',!!S[tagKey]&&x.dataset.tag.toLowerCase()===S[tagKey].toLowerCase());});
+      refill();
+    });
+  });
+}
+function topicRowHTML(t,sub,withMenu){
+  return '<div class="row" data-tid="'+t.id+'">'+fileSVG(20)+(sub?'<div class="row-text"><span class="row-name">'+esc(t.name)+'</span><span class="row-sub">'+esc(sub)+'</span></div>':'<span class="row-name">'+esc(t.name)+'</span>')+'<span class="row-count">'+t.pages.length+'</span>'+(withMenu?'<button class="row-act tmenu" data-tid="'+t.id+'" aria-label="Topic options">⋮</button>':'')+'</div>';
+}
+function wireRows(list){
+  list.querySelectorAll('.row[data-fid]').forEach(function(r){
+    r.addEventListener('click',function(e){if(e.target.closest('.row-act'))return;openFolder(+r.dataset.fid);});
+  });
+  list.querySelectorAll('.row[data-tid]').forEach(function(r){
+    r.addEventListener('click',function(e){if(e.target.closest('.row-act'))return;openTopic(+r.dataset.tid);});
+  });
+  list.querySelectorAll('.edit-f').forEach(function(b){
+    b.addEventListener('click',function(e){e.stopPropagation();S.modal='edit-folder';S.editFolderTarget=+b.dataset.fid;render();});
+  });
+  list.querySelectorAll('.tmenu').forEach(function(b){
+    b.addEventListener('click',function(e){e.stopPropagation();S.modal='topic-menu';S.editTopicTarget=+b.dataset.tid;render();});
+  });
+}
+
 // ── SCREEN 1: FOLDERS ──
 function renderHome(main){
   var isLight=document.body.classList.contains('light');
@@ -498,31 +576,24 @@ function renderHome(main){
   h.querySelector('#acct-btn').addEventListener('click',function(){S.modal='account';render();});
   main.appendChild(h);
 
+  var tags=allTagList();
+  if(S.homeTag&&!tags.some(function(g){return g.toLowerCase()===S.homeTag.toLowerCase();}))S.homeTag='';
   var content=el('div','content');
   var wrap=el('div','list-wrap');
-  wrap.innerHTML='<div class="search-box">'+searchSVG()+'<input id="search" type="text" placeholder="Search topics and pages" value="'+esc(S.search||'')+'" autocomplete="off" autocorrect="off" spellcheck="false"><button class="search-clear" id="search-clear" style="display:'+(S.search?'flex':'none')+'" aria-label="Clear">×</button></div><div id="home-list"></div>';
+  wrap.innerHTML=searchBoxHTML('search',S.search,'Search all topics and pages')+chipsHTML(tags,S.homeTag)+'<div id="home-list"></div>';
   content.appendChild(wrap);
   main.appendChild(content);
-
   var list=wrap.querySelector('#home-list');
-  var inp=wrap.querySelector('#search');
-  var clr=wrap.querySelector('#search-clear');
   fillHomeList(list);
-  inp.addEventListener('input',function(){
-    S.search=inp.value;
-    clr.style.display=S.search?'flex':'none';
-    fillHomeList(list);
-  });
-  clr.addEventListener('click',function(){
-    S.search='';inp.value='';clr.style.display='none';fillHomeList(list);inp.focus();
-  });
+  wireFilters(wrap,'search','search','homeTag',function(){fillHomeList(list);});
   main.appendChild(buildFab(function(){S.modal='new-folder';render();}));
 }
 
 function fillHomeList(list){
   var q=(S.search||'').trim().toLowerCase();
+  var tag=S.homeTag||'';
   var html='';
-  if(!q){
+  if(!q&&!tag){
     if(!S.folders.length){
       list.innerHTML='<div class="empty" id="empty-add" style="cursor:pointer">'+folderSVG(44)+'<h3>No folders yet</h3><p style="color:var(--gold);font-weight:700;font-size:15px">Tap to create your first folder</p></div>';
       list.querySelector('#empty-add').addEventListener('click',function(){S.modal='new-folder';render();});
@@ -534,16 +605,15 @@ function fillHomeList(list){
     });
     html+='</div>';
   } else {
-    var fMatches=sortedFolders().filter(function(f){return f.name.toLowerCase().indexOf(q)>=0;});
+    var fMatches=(q&&!tag)?sortedFolders().filter(function(f){return f.name.toLowerCase().indexOf(q)>=0;}):[];
     var tMatches=[];
     sortedFolders().forEach(function(f){
       sortedTopics(f).forEach(function(t){
-        var hit=t.name.toLowerCase().indexOf(q)>=0||t.pages.some(function(p){return (p.title||'').toLowerCase().indexOf(q)>=0;});
-        if(hit)tMatches.push({t:t,f:f});
+        if((!tag||hasTag(t,tag))&&topicMatches(t,q))tMatches.push({t:t,f:f});
       });
     });
     if(!fMatches.length&&!tMatches.length){
-      list.innerHTML='<div class="no-results">No matches for "'+esc(S.search.trim())+'"</div>';
+      list.innerHTML='<div class="no-results">No matches</div>';
       return;
     }
     if(fMatches.length){
@@ -555,22 +625,12 @@ function fillHomeList(list){
     }
     if(tMatches.length){
       html+='<div class="section-label">Topics</div><div class="rows">';
-      tMatches.forEach(function(m){
-        html+='<div class="row" data-tid="'+m.t.id+'">'+fileSVG(20)+'<div class="row-text"><span class="row-name">'+esc(m.t.name)+'</span><span class="row-sub">'+esc(m.f.name)+'</span></div><span class="row-count">'+m.t.pages.length+'</span></div>';
-      });
+      tMatches.forEach(function(m){html+=topicRowHTML(m.t,m.f.name,false);});
       html+='</div>';
     }
   }
   list.innerHTML=html;
-  list.querySelectorAll('.row[data-fid]').forEach(function(r){
-    r.addEventListener('click',function(e){if(e.target.closest('.row-act'))return;openFolder(+r.dataset.fid);});
-  });
-  list.querySelectorAll('.row[data-tid]').forEach(function(r){
-    r.addEventListener('click',function(){openTopic(+r.dataset.tid);});
-  });
-  list.querySelectorAll('.edit-f').forEach(function(b){
-    b.addEventListener('click',function(e){e.stopPropagation();S.modal='edit-folder';S.editFolderTarget=+b.dataset.fid;render();});
-  });
+  wireRows(list);
 }
 
 // ── SCREEN 2: TOPICS IN A FOLDER ──
@@ -584,22 +644,74 @@ function renderFolder(main,folder){
     wrap.innerHTML='<div class="empty" id="empty-add" style="cursor:pointer">'+fileSVG(44)+'<h3>No topics yet</h3><p style="color:var(--gold);font-weight:700;font-size:15px">Tap to add a topic</p></div>';
     wrap.querySelector('#empty-add').addEventListener('click',function(){S.modal='new-topic';S.editFolderTarget=folder.id;render();});
   } else {
-    var html='<div class="rows">';
-    sortedTopics(folder).forEach(function(t){
-      html+='<div class="row" data-tid="'+t.id+'">'+fileSVG(20)+'<span class="row-name">'+esc(t.name)+'</span><span class="row-count">'+t.pages.length+'</span><button class="row-act tmenu" data-tid="'+t.id+'" aria-label="Topic options">⋮</button></div>';
-    });
-    html+='</div>';
-    wrap.innerHTML=html;
-    wrap.querySelectorAll('.row[data-tid]').forEach(function(r){
-      r.addEventListener('click',function(e){if(e.target.closest('.row-act'))return;openTopic(+r.dataset.tid);});
-    });
-    wrap.querySelectorAll('.tmenu').forEach(function(b){
-      b.addEventListener('click',function(e){e.stopPropagation();S.modal='topic-menu';S.editTopicTarget=+b.dataset.tid;render();});
-    });
+    var tags=tagsIn(folder.topics);
+    if(S.folderTag&&!tags.some(function(g){return g.toLowerCase()===S.folderTag.toLowerCase();}))S.folderTag='';
+    wrap.innerHTML=searchBoxHTML('fsearch',S.folderSearch,'Search in '+esc(folder.name))+chipsHTML(tags,S.folderTag)+'<div id="folder-list"></div>';
+    var list=wrap.querySelector('#folder-list');
+    var refill=function(){
+      var q=(S.folderSearch||'').trim().toLowerCase();
+      var tag=S.folderTag||'';
+      var ts=sortedTopics(folder).filter(function(t){return (!tag||hasTag(t,tag))&&topicMatches(t,q);});
+      if(!ts.length){list.innerHTML='<div class="no-results">No matches</div>';return;}
+      list.innerHTML='<div class="rows">'+ts.map(function(t){return topicRowHTML(t,'',true);}).join('')+'</div>';
+      wireRows(list);
+    };
+    refill();
+    wireFilters(wrap,'fsearch','folderSearch','folderTag',refill);
   }
   content.appendChild(wrap);
   main.appendChild(content);
   main.appendChild(buildFab(function(){S.modal='new-topic';S.editFolderTarget=folder.id;render();}));
+}
+
+// Tag editor inside the topic sheet. Returns a function that gives the final tag list.
+function wireTagEditor(m,startTags){
+  var tags=startTags.slice();
+  var box=m.querySelector('#tag-box'),inp=m.querySelector('#tag-input'),sug=m.querySelector('#tag-sug');
+  var pool=allTagList();
+  function canon(s){
+    s=s.replace(/\s+/g,' ').trim();if(!s)return '';
+    var ex=pool.filter(function(g){return g.toLowerCase()===s.toLowerCase();})[0];
+    return ex||s;
+  }
+  function add(raw){
+    var g=canon(raw);
+    if(g&&!tags.some(function(x){return x.toLowerCase()===g.toLowerCase();}))tags.push(g);
+    inp.value='';drawPills();drawSug();
+  }
+  function drawPills(){
+    box.querySelectorAll('.tag-pill').forEach(function(p){p.remove();});
+    tags.forEach(function(g,i){
+      var p=el('span','tag-pill');
+      p.innerHTML=esc(g)+'<button type="button" data-ti="'+i+'" aria-label="Remove">×</button>';
+      p.querySelector('button').addEventListener('click',function(){tags.splice(i,1);drawPills();drawSug();});
+      box.insertBefore(p,inp);
+    });
+  }
+  function drawSug(){
+    var q=inp.value.trim().toLowerCase();
+    if(!q){sug.innerHTML='';return;}
+    var opts=pool.filter(function(g){return g.toLowerCase().indexOf(q)>=0&&!tags.some(function(x){return x.toLowerCase()===g.toLowerCase();});});
+    var exact=pool.some(function(g){return g.toLowerCase()===q;})||tags.some(function(x){return x.toLowerCase()===q;});
+    var html=opts.slice(0,6).map(function(g){return '<button type="button" class="tag-opt" data-g="'+esc(g)+'">'+esc(g)+'</button>';}).join('');
+    if(!exact)html+='<button type="button" class="tag-opt tag-new" data-g="'+esc(inp.value.trim())+'">+ Add "'+esc(inp.value.trim())+'"</button>';
+    sug.innerHTML=html;
+    sug.querySelectorAll('.tag-opt').forEach(function(b){
+      b.addEventListener('mousedown',function(e){e.preventDefault();});
+      b.addEventListener('click',function(){add(b.dataset.g);inp.focus();});
+    });
+  }
+  inp.addEventListener('keydown',function(e){
+    if(e.key==='Enter'){e.preventDefault();if(inp.value.trim())add(inp.value);}
+    else if(e.key==='Backspace'&&!inp.value&&tags.length){tags.pop();drawPills();}
+  });
+  inp.addEventListener('input',function(){
+    if(inp.value.indexOf(',')>=0){inp.value.split(',').forEach(function(p){if(p.trim())add(p);});return;}
+    drawSug();
+  });
+  box.addEventListener('click',function(e){if(e.target===box)inp.focus();});
+  drawPills();
+  return function(){if(inp.value.trim())add(inp.value);return tags.slice();};
 }
 
 // ── SCREEN 3: PAGES IN A TOPIC ──
@@ -890,7 +1002,8 @@ function renderModal(app){
     var curFolder=editing3?getFolderOf(et.id):S.folders.filter(function(f){return f.id===S.editFolderTarget;})[0];
     var m3=el('div','modal');
     var folderOpts=sortedFolders().map(function(f){return '<option value="'+f.id+'"'+(curFolder&&f.id===curFolder.id?' selected':'')+'>'+esc(f.name)+'</option>';}).join('');
-    m3.innerHTML='<div class="modal-handle"></div><h3>'+(editing3?'Edit Topic':'New Topic')+'</h3><div class="fg"><label>Topic Name</label><input id="tname" value="'+(et?esc(et.name):'')+'" placeholder="e.g. Leadership Talk" autocomplete="off"></div><div class="fg"><label>Folder</label><select id="tfolder">'+folderOpts+'</select></div><div class="macts">'+(editing3?'<button class="btn btn-red" id="del-topic-btn">Delete Topic</button>':'')+'<button class="btn btn-ghost" id="mcancel3">Cancel</button><button class="btn btn-gold" id="msave3">'+(editing3?'Save':'Add Topic')+'</button></div>';
+    m3.innerHTML='<div class="modal-handle"></div><h3>'+(editing3?'Edit Topic':'New Topic')+'</h3><div class="fg"><label>Topic Name</label><input id="tname" value="'+(et?esc(et.name):'')+'" placeholder="e.g. Leadership Talk" autocomplete="off"></div><div class="fg"><label>Folder</label><select id="tfolder">'+folderOpts+'</select></div><div class="fg"><label>Tags</label><div class="tag-box" id="tag-box"><input id="tag-input" placeholder="Add a tag…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="done"></div><div class="tag-sug" id="tag-sug"></div></div><div class="macts">'+(editing3?'<button class="btn btn-red" id="del-topic-btn">Delete Topic</button>':'')+'<button class="btn btn-ghost" id="mcancel3">Cancel</button><button class="btn btn-gold" id="msave3">'+(editing3?'Save':'Add Topic')+'</button></div>';
+    var getTags=wireTagEditor(m3,et?topicTags(et):[]);
     m3.querySelector('#mcancel3').addEventListener('click',function(){S.modal=null;render();});
     if(editing3)m3.querySelector('#del-topic-btn').addEventListener('click',function(){
       if(!et)return;
@@ -902,7 +1015,7 @@ function renderModal(app){
       var name=m3.querySelector('#tname').value.trim();if(!name){m3.querySelector('#tname').focus();return;}
       var targetFid=+m3.querySelector('#tfolder').value;
       if(editing3){
-        et.name=name;
+        et.name=name;et.tags=getTags();
         if(curFolder&&curFolder.id!==targetFid){
           curFolder.topics=curFolder.topics.filter(function(t){return t.id!==et.id;});
           var tf=S.folders.filter(function(f){return f.id===targetFid;})[0];
@@ -910,7 +1023,7 @@ function renderModal(app){
         }
       } else {
         var tf2=S.folders.filter(function(f){return f.id===targetFid;})[0];
-        if(tf2)tf2.topics.push({id:Date.now(),name:name,pages:[]});
+        if(tf2)tf2.topics.push({id:Date.now(),name:name,tags:getTags(),pages:[]});
       }
       S.modal=null;saveData();render();
     });
@@ -934,7 +1047,7 @@ function renderModal(app){
   } else if(S.modal==='account'){
     var u=S.user||{};
     var ma=el('div','modal');
-    ma.innerHTML='<div class="modal-handle"></div><div class="acct-info">'+(u.photoURL?'<img src="'+esc(u.photoURL)+'" width="56" height="56" alt="" onerror="this.style.display=\'none\'">':'')+'<div class="acct-name">'+esc(u.displayName||'')+'</div><div class="acct-email">'+esc(u.email||'')+'</div></div><button class="sheet-item danger" id="acct-signout">Sign out</button><button class="sheet-item cancel" id="acct-cancel">Cancel</button><div style="text-align:center;font-size:11px;color:var(--t3);margin-top:8px">SpeakDeck 4.0</div>';
+    ma.innerHTML='<div class="modal-handle"></div><div class="acct-info">'+(u.photoURL?'<img src="'+esc(u.photoURL)+'" width="56" height="56" alt="" onerror="this.style.display=\'none\'">':'')+'<div class="acct-name">'+esc(u.displayName||'')+'</div><div class="acct-email">'+esc(u.email||'')+'</div></div><button class="sheet-item danger" id="acct-signout">Sign out</button><button class="sheet-item cancel" id="acct-cancel">Cancel</button><div style="text-align:center;font-size:11px;color:var(--t3);margin-top:8px">SpeakDeck 4.1</div>';
     ma.querySelector('#acct-signout').addEventListener('click',function(){S.modal=null;if(window._fb)window._fb.signOut();});
     ma.querySelector('#acct-cancel').addEventListener('click',function(){S.modal=null;render();});
     ov.appendChild(ma);
